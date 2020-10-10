@@ -166,7 +166,12 @@ int main(int argc, char *argv[])
 
             encodeSHA1(filename, obuf);
 
-            sock->write((const char *)obuf, 20);
+            string SHA1string((char *)obuf);
+            string returnMessage = SHA1string + ":" + filename;
+            cout << returnMessage << endl;
+            sock->write(returnMessage.c_str(), 21 + readlen);
+
+            // sock->write((const char *)obuf, 20);
 
             readlen = 0;
 

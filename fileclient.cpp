@@ -67,7 +67,6 @@
 #include <string>
 #include <cstdlib>
 #include <sstream>
-#include <string>
 #include <stdio.h>
 #include <openssl/sha.h>
 #include <unordered_map>
@@ -85,7 +84,8 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]);
 void readFiveTimes(C150DgmSocket *sock, char *incomingMessage, int size);
 void toLog(string filename, string status, int attempts);
 void encodeSHA1(string filename, unsigned char obuf[]);
-void printSHA1(unsigned char *received, unsigned char *expected);
+// void printSHA1(unsigned char *received, unsigned char *expected);
+void printSHA1(unsigned char *received);
 void hashSHA1(char *sourceFile, sha1Map &SHA1map);
 void checkDirectory(char *dirname);
 
@@ -119,8 +119,8 @@ int main(int argc, char *argv[])
     //
     ssize_t readlen; // amount of data read from socket
     (void)readlen;
-    char incomingMessage[512];      // received message data
-    unsigned char incomingSHA1[20]; // received SHA1 data
+    char incomingMessage[512]; // received message data
+    // unsigned char incomingSHA1[20]; // received SHA1 data
 
     sha1Map SHA1 = {};
     //
@@ -152,52 +152,56 @@ int main(int argc, char *argv[])
         // Tell the DGMSocket which server to talk to
         sock->setServerName(argv[serverArg]);
 
-        // char filename[50] = "data1";
         string filename = "independence.txt";
-
-        // recurse through directory
-        // for each file, key = filepath, value = encoded SHA1
         encodeSHA1(filename, obuf);
         // auto s = SHA1.find("independence.txt");
 
         hashSHA1(argv[2], SHA1);
         for (const auto &n : SHA1)
         {
-            cout << "Key: " << n.first << endl;
-            printSHA1(n.second, n.second);
+            // cout << "Key: " << n.first << endl;
+            // Send the message to the server
+            c150debug->printf(C150APPLICATION, "%s: Sending file: \"%s\"",
+                              argv[0], n.first);
+            auto sha = SHA1.find(n.first);
+
+            cout << "Computed by client:";
+            printSHA1(sha->second);
+            cout << n.first << endl;
+
+            sock->write((n.first).c_str(), (n.first).length() + 1); // +1 includes the null
+            c150debug->printf(C150APPLICATION, "%s: Returned from write, doing read()", argv[0]);
+            readFiveTimes(sock, incomingMessage, OBUF_SIZE);
+
+            cout << "From server:";
+            printSHA1((unsigned char *)strtok(incomingMessage, ":"));
+            cout << strtok(incomingMessage, ":") << endl;
         }
-
-        // Send the message to the server
-        c150debug->printf(C150APPLICATION, "%s: Sending file: \"%s\"",
-                          argv[0], filename.c_str());
-        sock->write(filename.c_str(), filename.length() + 1); // +1 includes the null
-
-        c150debug->printf(C150APPLICATION, "%s: Returned from write, doing read()", argv[0]);
 
         // Read SHA1 from server
-        readFiveTimes(sock, (char *)incomingSHA1, OBUF_SIZE);
+        // readFiveTimes(sock, (char *)incomingSHA1, OBUF_SIZE);
 
-        char status[100]; // NEEDSWORK: how not to use static atribitrary num?
+        // char status[100]; // NEEDSWORK: how not to use static atribitrary num?
 
-        if (strcmp((const char *)obuf, (const char *)incomingSHA1) == 0)
-        {
-            strcpy(status, filename.c_str());
-            strcat(status, " check succeeded");
-            toLog(filename, "succeeded", 1);
-        }
-        else
-        {
-            strcpy(status, filename.c_str());
-            strcat(status, " check failed");
-            toLog(filename, "failed", 1);
-        }
+        // if (strcmp((const char *)obuf, (const char *)incomingSHA1) == 0)
+        // {
+        //     strcpy(status, filename.c_str());
+        //     strcat(status, " check succeeded");
+        //     toLog(filename, "succeeded", 1);
+        // }
+        // else
+        // {
+        //     strcpy(status, filename.c_str());
+        //     strcat(status, " check failed");
+        //     toLog(filename, "failed", 1);
+        // }
 
-        sock->write(status, strlen(status + 1));
+        // sock->write(status, strlen(status + 1));
 
-        // Read ack from server
-        readFiveTimes(sock, (char *)incomingMessage, OBUF_SIZE);
+        // // Read ack from server
+        // readFiveTimes(sock, (char *)incomingMessage, OBUF_SIZE);
 
-        c150debug->printf(C150APPLICATION, "%s", incomingMessage);
+        // c150debug->printf(C150APPLICATION, "%s", incomingMessage);
     }
 
     //
@@ -241,7 +245,7 @@ void toLog(string filename, string status, int attempt)
     c150debug->printf(C150APPLICATION, "\"%s\": copy \"%s\"", filename, status);
 }
 
-void printSHA1(unsigned char *received, unsigned char *expected)
+void printSHA1(unsigned char *received)
 {
     // cout << "Received:" << endl;
 
