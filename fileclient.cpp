@@ -60,19 +60,34 @@
 
 #include "c150dgmsocket.h"
 #include "c150debug.h"
+#include "c150grading.h"
+// #include "nastyfiletest.cpp"
+#include <dirent.h>
 #include <fstream>
 #include <string>
 #include <cstdlib>
 #include <sstream>
 #include <stdio.h>
 #include <openssl/sha.h>
-
+#include <unordered_map>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <filesystem>
 using namespace std;         // for C++ std library
 using namespace C150NETWORK; // for all the comp150 utilities
+
+typedef unordered_map<string, unsigned char *> sha1Map;
 
 // forward declarations
 void checkAndPrintMessage(ssize_t readlen, char *buf, ssize_t bufferlen);
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
+void readFiveTimes(C150DgmSocket *sock, char *incomingMessage, int size);
+void toLog(string filename, string status, int attempts);
+void encodeSHA1(string filename, unsigned char obuf[]);
+// void printSHA1(unsigned char *received, unsigned char *expected);
+void printSHA1(unsigned char *received);
+void hashSHA1(char *sourceFile, sha1Map &SHA1map);
+void checkDirectory(char *dirname);
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 //
@@ -87,9 +102,8 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]);
 const int serverArg = 1; // server name is 1st arg
 const int msgArg = 2;    // message text is 2nd arg
 
-ifstream *t; // SHA1-related variables
-stringstream *buffer;
 unsigned char obuf[20];
+int OBUF_SIZE = 20;
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 //
 //                           main program
@@ -98,24 +112,28 @@ unsigned char obuf[20];
 
 int main(int argc, char *argv[])
 {
+    GRADEME(argc, argv);
 
     //
     // Variable declarations
     //
-    ssize_t readlen;           // amount of data read from socket
+    ssize_t readlen; // amount of data read from socket
+    (void)readlen;
     char incomingMessage[512]; // received message data
+    // unsigned char incomingSHA1[20]; // received SHA1 data
 
+    sha1Map SHA1 = {};
     //
     //  Set up debug message logging
     //
-    setUpDebugLogging("pingclientdebug.txt", argc, argv);
+    setUpDebugLogging("clientdebug.txt", argc, argv);
 
     //
     // Make sure command line looks right
     //
-    if (argc != 2)
+    if (argc != 3)
     {
-        fprintf(stderr, "Correct syntxt is: %s <servername>>\n", argv[0]);
+        fprintf(stderr, "Correct syntxt is: %s <servername> <srcdir>\n", argv[0]);
         exit(1);
     }
 
@@ -134,65 +152,56 @@ int main(int argc, char *argv[])
         // Tell the DGMSocket which server to talk to
         sock->setServerName(argv[serverArg]);
 
-        char filename[50] = "data1";
+        string filename = "independence.txt";
+        encodeSHA1(filename, obuf);
+        // auto s = SHA1.find("independence.txt");
 
-        // Send the message to the server
-        c150debug->printf(C150APPLICATION, "%s: Sending file: \"%s\"",
-                          argv[0], filename);
-        sock->write(filename, strlen(filename + 1)); // +1 includes the null
+        hashSHA1(argv[2], SHA1);
+        for (const auto &n : SHA1)
+        {
+            // cout << "Key: " << n.first << endl;
+            // Send the message to the server
+            c150debug->printf(C150APPLICATION, "%s: Sending file: \"%s\"",
+                              argv[0], n.first);
+            auto sha = SHA1.find(n.first);
 
-        c150debug->printf(C150APPLICATION, "%s: Returned from write, doing read()", argv[0]);
+            cout << "Computed by client:";
+            printSHA1(sha->second);
+            cout << n.first << endl;
+
+            sock->write((n.first).c_str(), (n.first).length() + 1); // +1 includes the null
+            c150debug->printf(C150APPLICATION, "%s: Returned from write, doing read()", argv[0]);
+            readFiveTimes(sock, incomingMessage, OBUF_SIZE);
+
+            cout << "From server:";
+            printSHA1((unsigned char *)strtok(incomingMessage, ":"));
+            cout << strtok(incomingMessage, ":") << endl;
+        }
 
         // Read SHA1 from server
-        readlen = sock->read(incomingMessage, sizeof(incomingMessage));
-        (void)readlen;
+        // readFiveTimes(sock, (char *)incomingSHA1, OBUF_SIZE);
 
-        t = new ifstream(filename);
-        buffer = new stringstream;
-        *buffer << t->rdbuf();
-        SHA1((const unsigned char *)buffer->str().c_str(),
-             (buffer->str()).length(), obuf);
+        // char status[100]; // NEEDSWORK: how not to use static atribitrary num?
 
-        char *status; // NEEDSWORK
+        // if (strcmp((const char *)obuf, (const char *)incomingSHA1) == 0)
+        // {
+        //     strcpy(status, filename.c_str());
+        //     strcat(status, " check succeeded");
+        //     toLog(filename, "succeeded", 1);
+        // }
+        // else
+        // {
+        //     strcpy(status, filename.c_str());
+        //     strcat(status, " check failed");
+        //     toLog(filename, "failed", 1);
+        // }
 
-        if (strcmp((const char *)obuf, incomingMessage) == 0)
-        {
-            status = strcat(filename, " check succeeded");
+        // sock->write(status, strlen(status + 1));
 
-            string file = "File: ";
-            string msg = " end-to-end check succeeded, attempt 0";
-            const char *log = (file + filename + msg).c_str();
+        // // Read ack from server
+        // readFiveTimes(sock, (char *)incomingMessage, OBUF_SIZE);
 
-            *GRADING << log;
-        }
-        else
-        {
-            status = strcat(filename, " check failed");
-
-            string file = "File: ";
-            string msg = " end-to-end check failed, attempt 0";
-            const char *log = (file + filename + msg).c_str();
-            *GRADING << log;
-        }
-
-        sock->write(status, strlen(status + 1));
-
-        // Read ack from server
-        int numAttempts = 0;
-
-        while (numAttempts < 6)
-        {
-            readlen = sock->read(incomingMessage, sizeof(incomingMessage));
-            if (sock->timedout() == 0)
-                break;
-
-            numAttempts++;
-
-            if (numAttempts == 5)
-                throw C150NetworkException("The server is not responding");
-        }
-
-        c150debug->printf(C150APPLICATION, "%s", incomingMessage);
+        // c150debug->printf(C150APPLICATION, "%s", incomingMessage);
     }
 
     //
@@ -209,6 +218,122 @@ int main(int argc, char *argv[])
     }
 
     return 0;
+}
+
+// NEEDSWORK: COMMENT THIS BIATCH
+void readFiveTimes(C150DgmSocket *sock, char *incomingMessage, int size)
+{
+    int numAttempts = 0;
+
+    while (numAttempts < 6)
+    {
+        sock->read(incomingMessage, size);
+        if (sock->timedout() == 0)
+            break;
+
+        numAttempts++;
+
+        if (numAttempts == 5)
+            throw C150NetworkException("The server is not responding");
+    }
+}
+
+// NEEDS WORK
+void toLog(string filename, string status, int attempt)
+{
+    *GRADING << "File: " + filename + " end-to-end check " + status + ", attempt " + to_string(attempt) << endl;
+    c150debug->printf(C150APPLICATION, "\"%s\": copy \"%s\"", filename, status);
+}
+
+void printSHA1(unsigned char *received)
+{
+    // cout << "Received:" << endl;
+
+    for (int i = 0; i < 20; i++)
+    {
+        printf("%02x", (unsigned int)received[i]);
+    }
+    cout << endl;
+
+    // cout << "Computed:" << endl;
+    // for (int i = 0; i < 20; i++)
+    // {
+    //     printf("%02x", (unsigned int)expected[i]);
+    // }
+
+    // cout << endl;
+}
+
+// Take in filename, and encrypt the content of the file using SHA1
+void encodeSHA1(string filename, unsigned char obuf[])
+{
+    ifstream *t; // SHA1 related variables
+    stringstream *buffer;
+    t = new ifstream("SRC/" + filename);
+    buffer = new stringstream;
+    *buffer << t->rdbuf();
+    SHA1((const unsigned char *)buffer->str().c_str(),
+         (buffer->str()).length(), obuf);
+
+    delete t;
+    delete buffer;
+}
+
+void hashSHA1(char *sf, sha1Map &SHA1map)
+{
+    checkDirectory(sf);
+
+    DIR *src;
+    struct dirent *sourceFile; // Directory entry for source file
+
+    unsigned char buf[20];
+
+    src = opendir(sf);
+    if (src == NULL)
+    {
+        fprintf(stderr, "Error opening source directory %s\n", sf);
+        exit(8);
+    }
+
+    while ((sourceFile = readdir(src)) != NULL)
+    {
+        // skip the . and .. names
+        if ((strcmp(sourceFile->d_name, ".") == 0) ||
+            (strcmp(sourceFile->d_name, "..") == 0))
+            continue; // never copy . or ..
+
+        encodeSHA1(sourceFile->d_name, buf);
+
+        unsigned char *p = new unsigned char[20];
+        strcpy((char *)p, (char *)buf);
+
+        SHA1map.insert({sourceFile->d_name, p});
+    }
+    closedir(src);
+}
+
+// ------------------------------------------------------
+//
+//                   checkDirectory
+//
+//  Make sure directory exists
+//
+// ------------------------------------------------------
+
+void checkDirectory(char *dirname)
+{
+    struct stat statbuf;
+    if (lstat(dirname, &statbuf) != 0)
+    {
+        fprintf(stderr, "Error stating supplied source directory %s\n", dirname);
+        exit(8);
+    }
+
+    if (!S_ISDIR(statbuf.st_mode))
+    {
+        fprintf(stderr, "File %s exists but is not a directory\n", dirname);
+        exit(8);
+    }
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

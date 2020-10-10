@@ -3,6 +3,14 @@
         "iosfwd": "cpp",
         "*.tcc": "cpp",
         "fstream": "cpp",
-        "sstream": "cpp"
+        "sstream": "cpp",
+        "ostream": "cpp",
+        "new": "cpp",
+        "string_view": "cpp",
+        "array": "cpp",
+        "deque": "cpp",
+        "string": "cpp",
+        "unordered_map": "cpp",
+        "vector": "cpp"
     }
 }

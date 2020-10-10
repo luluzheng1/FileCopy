@@ -1,0 +1,10 @@
+.vscode
+
+*.txt
+
+*.o
+
+TODO
+
+/SRC
+/TARGET

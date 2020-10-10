@@ -53,6 +53,7 @@
 
 #include "c150nastydgmsocket.h"
 #include "c150debug.h"
+#include "c150grading.h"
 #include <fstream>
 #include <cstdlib>
 #include <string>
@@ -63,7 +64,8 @@
 using namespace C150NETWORK; // for all the comp150 utilities
 
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
-
+void encodeSHA1(string filename, unsigned char obuf[]);
+void toLog(string filename, string status, int attempts);
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 //
 //                           main program
@@ -72,6 +74,7 @@ void setUpDebugLogging(const char *logname, int argc, char *argv[]);
 
 int main(int argc, char *argv[])
 {
+    GRADEME(argc, argv);
 
     //
     // Variable declarations
@@ -81,8 +84,6 @@ int main(int argc, char *argv[])
     string filename;
     int nastiness; // how aggressively do we drop packets, etc?
 
-    ifstream *t; // SHA1 related variables
-    stringstream *buffer;
     unsigned char obuf[20];
     //
     // Check command line and parse arguments
@@ -163,14 +164,14 @@ int main(int argc, char *argv[])
             filename = incoming;
             c150debug->printf(C150APPLICATION, "Successfully read %d bytes. Message=\"%s\"", readlen, incoming.c_str());
 
-            printf("SHA1 (\"%s\") = ", incoming.c_str());
-            t = new ifstream(incoming.c_str());
-            buffer = new stringstream;
-            *buffer << t->rdbuf();
-            SHA1((const unsigned char *)buffer->str().c_str(),
-                 (buffer->str()).length(), obuf);
+            encodeSHA1(filename, obuf);
 
-            sock->write((const char *)obuf, 20);
+            string SHA1string((char *)obuf);
+            string returnMessage = SHA1string + ":" + filename;
+            cout << returnMessage << endl;
+            sock->write(returnMessage.c_str(), 21 + readlen);
+
+            // sock->write((const char *)obuf, 20);
 
             readlen = 0;
 
@@ -192,20 +193,11 @@ int main(int argc, char *argv[])
                                               // non-printing characters to .
             string expectedStatus = filename + " check succeeded";
             if (strcmp(status.c_str(), expectedStatus.c_str()))
-            {
-                *GRADING << "File: " + filename + " end-to-end check succeeded\n";
-                c150debug->printf(C150APPLICATION, "Successfully copied \"%s\"", filename);
-            }
+                toLog(filename, "succeeded", 1);
             else
-            {
-                *GRADING << "FILE: " + filename + " end-to-end check failed\n";
-                c150debug->printf(C150APPLICATION, "Failed to copy \"%s\"", filename);
-            }
+                toLog(filename, "failed", 1);
 
             sock->write(status.c_str(), strlen(status.c_str()));
-
-            delete t;
-            delete buffer;
         }
     }
 
@@ -220,6 +212,28 @@ int main(int argc, char *argv[])
 
     // This only executes if there was an error caught above
     return 4;
+}
+
+// Take in filename, and encrypt the content of the file using SHA1
+void encodeSHA1(string filename, unsigned char obuf[])
+{
+    ifstream *t; // SHA1 related variables
+    stringstream *buffer;
+    t = new ifstream("TARGET/" + filename);
+    buffer = new stringstream;
+    *buffer << t->rdbuf();
+    SHA1((const unsigned char *)buffer->str().c_str(),
+         (buffer->str()).length(), obuf);
+
+    delete t;
+    delete buffer;
+}
+
+// TODO: Why is there a 30 second delay for log to be put into to GRADELOG?
+void toLog(string filename, string status, int attempt)
+{
+    *GRADING << "File: " + filename + " end-to-end check " + status + ", attempt " + to_string(attempt) << endl;
+    c150debug->printf(C150APPLICATION, "\"%s\": copy \"%s\"", filename, status);
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

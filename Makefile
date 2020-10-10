@@ -41,7 +41,7 @@ C150LIB = $(COMP117)/files/c150Utils/
 C150AR = $(C150LIB)c150ids.a
 
 LDFLAGS = 
-INCLUDES = $(C150LIB)c150dgmsocket.h $(C150LIB)c150nastydgmsocket.h $(C150LIB)c150network.h $(C150LIB)c150exceptions.h $(C150LIB)c150debug.h $(C150LIB)c150utility.h
+INCLUDES = $(C150LIB)c150dgmsocket.h $(C150LIB)c150nastydgmsocket.h $(C150LIB)c150network.h $(C150LIB)c150exceptions.h $(C150LIB)c150debug.h $(C150LIB)c150utility.h $(C150LIB)c150grading.h
 
 all: nastyfiletest makedatafile sha1test fileclient fileserver
 
@@ -88,6 +88,6 @@ fileserver: fileserver.o $(C150AR) $(INCLUDES)
 # for forcing complete rebuild#
 
 clean:
-	 rm -f nastyfiletest sha1test makedatafile fileclient fileserver *.o 
+	 rm -f nastyfiletest sha1test makedatafile fileclient fileserver *.o *.txt
 
 
