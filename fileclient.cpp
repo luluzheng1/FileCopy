@@ -82,7 +82,7 @@ typedef unordered_map<string, unsigned char *> sha1Map;
 // forward declarations
 void checkAndPrintMessage(ssize_t readlen, char *buf, ssize_t bufferlen);
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
-int retryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage, int size, string serverName);
+int retryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage, string serverName);
 void toLog(string filename, string status, int attempts);
 void encodeSHA1(string filename, unsigned char obuf[]);
 // void printSHA1(unsigned char *received, unsigned char *expected);
@@ -123,6 +123,10 @@ int main(int argc, char *argv[])
     ssize_t readlen; // amount of data read from socket
     (void)readlen;
     char incomingMessage[512]; // received message data
+    string filename;
+    string incomingSHA1;
+    char status[100]; // NEEDSWORK: how not to use static atribitrary num?
+
     int networkNastiness;
     int fileNastiness;
     char *sourceDir;
@@ -171,34 +175,55 @@ int main(int argc, char *argv[])
             c150debug->printf(C150APPLICATION, "%s: Sending file: \"%s\"",
                               argv[0], n.first);
             auto sha = SHA1.find(n.first);
+            string SHAstring((char *)sha->second);
 
-            // Send filename to server and read SHA1 encryption from server
+            while (1) {
+                // Send filename to server and read SHA1 encryption from server
+                int attempt = retryFiveTimes(sock, n.first + ":filename" , incomingMessage, serverName);
+                printf("file: %s, attempt %d\n", (char *)n.first.c_str(), attempt);
 
-            int attempt = retryFiveTimes(sock, n.first, incomingMessage, OBUF_SIZE, serverName);
+                // Parse the response
+                string incoming(incomingMessage); // Convert to C++ string ...it's slightly
+                                                // easier to work with, and cleanString
+                                                // expects it
+                cleanString(incoming); 
 
-            // DEBUGGING PRINT STATEMENTS
+                cout << "Response from server: " + incoming << endl;
 
-            printf("file: %s, attempt %d\n", (char *)n.first.c_str(), attempt);
-            char status[100]; // NEEDSWORK: how not to use static atribitrary num?
-            if (strcmp((const char *)sha->second, (const char *)incomingMessage) == 0)
-            {
-                strcpy(status, (n.first).c_str());
-                strcat(status, " check succeeded");
-                toLog(n.first, "succeeded", attempt);
+                size_t pos = incoming.find(":");
+                filename = incoming.substr(0, pos);
+                incoming.erase(0, pos + 1);
+                pos = incoming.find(":");
+                incomingSHA1 = incoming.substr(0, pos);
+
+                // cout << filename << endl;
+                break;
+
+                if (filename == n.first) {
+                    strcpy(status, (n.first).c_str());
+                    strcat(status, ":status:");
+
+                    if (SHAstring.compare(incomingSHA1) == 0)
+                    {
+                        strcat(status, "check succeeded");
+                        toLog(n.first, "succeeded", attempt);
+                    }
+                    else
+                    {
+                        strcat(status, "check failed");
+                        toLog(n.first, "failed", attempt);
+                    }
+
+                    printf("status %s\n", status);
+                    printf("len of status: %ld\n", strlen(status));
+                    printf("incomingMessage from server: %s \n", incomingMessage);
+
+                    break;
+                }             
             }
-            else
-            {
-                strcpy(status, (n.first).c_str());
-                strcat(status, " check failed");
-                toLog(n.first, "failed", attempt);
-            }
-
-            printf("status %s\n", status);
-            printf("len of status: %ld\n", strlen(status));
-            printf("incomingMessage from server: %s \n", incomingMessage);
 
             // Write status to server and read ack from server
-            retryFiveTimes(sock, status, (char *)incomingMessage, OBUF_SIZE, serverName);
+            retryFiveTimes(sock, status, (char *)incomingMessage, serverName);
 
             c150debug->printf(C150APPLICATION, "%s", incomingMessage);
         }
@@ -221,16 +246,18 @@ int main(int argc, char *argv[])
 }
 
 // NEEDSWORK: COMMENT THIS BIATCH
-int retryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage, int size, string serverName)
+int retryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage, string serverName)
 {
     int numAttempts = 0;
+
+    cout << "Sending: " + outgoingMessage << endl << endl;;
 
     while (numAttempts < 5)
     {
         sock->write(outgoingMessage.c_str(), strlen(outgoingMessage.c_str()) + 1);
 
         c150debug->printf(C150APPLICATION, "%s: Returned from write, doing read()", serverName);
-        int readlen = sock->read(incomingMessage, size);
+        int readlen = sock->read(incomingMessage, sizeof(incomingMessage) - 1);
         if (sock->timedout() == 0 or readlen != 0)
             break;
 

@@ -82,6 +82,9 @@ int main(int argc, char *argv[])
     ssize_t readlen;           // amount of data read from socket
     char incomingMessage[512]; // received message data
     string filename;
+    string messageType;
+    string status;
+
     int networkNastiness; // how aggressively do we drop packets, etc?
     int fileNastiness;
     string targetDir;
@@ -166,44 +169,48 @@ int main(int argc, char *argv[])
                                               // expects it
             cleanString(incoming);            // c150ids-supplied utility: changes
                                               // non-printing characters to .
-            filename = incoming;
             c150debug->printf(C150APPLICATION, "Successfully read %d bytes. Message=\"%s\"", readlen, incoming.c_str());
 
-            encodeSHA1(targetDir, filename, obuf);
+            // Detect message type
+            size_t pos = incoming.find(":");
+            
+            filename = incoming.substr(0, pos);
+            incoming.erase(0, pos + 1);
+            pos = incoming.find(":");
+            messageType = incoming.substr(0, pos);
 
-            c150debug->printf(C150APPLICATION, "%s: Sending SHA1 for file: \"%s\"", filename);
-            sock->write((const char *)obuf, 20);
+            cout << filename << endl;
+            cout << messageType << endl;
 
-            // before move to confirmation
-            readlen = 0;
+            if (messageType.compare("filename") == 0) {
+                // Filename sent, return back SHA1 of the specified file
+                encodeSHA1(targetDir, filename, obuf);
+                c150debug->printf(C150APPLICATION, "%s: Sending SHA1 for file: \"%s\"", filename);
+                string response = filename + ":" + (const char *)obuf;
 
-            // Read confirmation
-            while (readlen == 0)
-            {
-                readlen = sock->read(incomingMessage, sizeof(incomingMessage) - 1);
-                if (readlen == 0)
-                {
-                    c150debug->printf(C150APPLICATION, "Read zero length message, trying again");
-                    continue;
-                }
+                cout << "Sending back: " << response << endl;
+                sock->write(response.c_str(), response.length());
+                // sock->write((const char *)obuf, 20)
+            } else {
+                // Status sent, return back acknowledgement
+                string expectedStatus = "check succeeded";
+                incoming.erase(0, pos + 1);
+                pos = incoming.find(":");
+                status = incoming.substr(0, pos);
+
+                cout << "From Client: " << status << endl;
+                cout << "Server expects: " << expectedStatus << endl;
+                cout << "Length of status: " << status.length() << endl;
+
+                if (strcmp(status.c_str(), expectedStatus.c_str()) == 0)
+                    toLog(filename, "succeeded");
+                else
+                    toLog(filename, "failed");
+
+                string response = filename + ":" + status;
+                cout << "Sending back: " << response << endl;
+                sock->write(response.c_str(), strlen(response.c_str()));
             }
-
-            incomingMessage[readlen] = '\0'; // make sure null terminated
-            string status(incomingMessage);  // Convert to C++ string ...it's slightly
-                                             // easier to work with, and cleanString
-                                             // expects it
-            cleanString(status);             // c150ids-supplied utility: changes
-                                             // non-printing characters to warandpeace..
-            string expectedStatus = filename + " check succeeded";
-            cout << "From Client: " << status << endl;
-            cout << "Server expects: " << expectedStatus << endl;
-            cout << "Length of status: " << status.length() << endl;
-            if (strcmp(status.c_str(), expectedStatus.c_str()) == 0)
-                toLog(filename, "succeeded");
-            else
-                toLog(filename, "failed");
-
-            sock->write(status.c_str(), strlen(status.c_str()));
         }
     }
 
