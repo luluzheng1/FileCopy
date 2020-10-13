@@ -61,6 +61,7 @@
 #include "c150dgmsocket.h"
 #include "c150debug.h"
 #include "c150grading.h"
+#include "c150nastydgmsocket.h"
 // #include "nastyfiletest.cpp"
 #include <dirent.h>
 #include <fstream>
@@ -81,7 +82,7 @@ typedef unordered_map<string, unsigned char *> sha1Map;
 // forward declarations
 void checkAndPrintMessage(ssize_t readlen, char *buf, ssize_t bufferlen);
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
-void readFiveTimes(C150DgmSocket *sock, char *incomingMessage, int size);
+int retryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage, int size, string serverName);
 void toLog(string filename, string status, int attempts);
 void encodeSHA1(string filename, unsigned char obuf[]);
 // void printSHA1(unsigned char *received, unsigned char *expected);
@@ -99,8 +100,10 @@ void checkDirectory(char *dirname);
 //
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-const int serverArg = 1; // server name is 1st arg
-const int msgArg = 2;    // message text is 2nd arg
+const int serverArg = 1;           // server name is 1st arg
+const int networkNastinessArg = 2; // network nastiness is 2nd arg
+const int fileNastinessArg = 3;    // file nastiness is 3rd arg
+const int sourceDirArg = 4;        // source directory is 4th arg
 
 unsigned char obuf[20];
 int OBUF_SIZE = 20;
@@ -120,9 +123,12 @@ int main(int argc, char *argv[])
     ssize_t readlen; // amount of data read from socket
     (void)readlen;
     char incomingMessage[512]; // received message data
-    // unsigned char incomingSHA1[20]; // received SHA1 data
+    int networkNastiness;
+    int fileNastiness;
+    char *sourceDir;
 
     sha1Map SHA1 = {};
+
     //
     //  Set up debug message logging
     //
@@ -131,11 +137,15 @@ int main(int argc, char *argv[])
     //
     // Make sure command line looks right
     //
-    if (argc != 3)
+    if (argc != 5)
     {
-        fprintf(stderr, "Correct syntxt is: %s <servername> <srcdir>\n", argv[0]);
+        fprintf(stderr, "Correct syntxt is: %s <servername> <networknastiness> <filenastiness> <srcdir>\n", argv[0]);
         exit(1);
     }
+    networkNastiness = atoi(argv[networkNastinessArg]);
+    fileNastiness = atoi(argv[fileNastinessArg]);
+    (void)fileNastiness;
+    sourceDir = argv[sourceDirArg];
 
     //
     //
@@ -143,65 +153,55 @@ int main(int argc, char *argv[])
     //
     try
     {
-
         // Create the socket
         c150debug->printf(C150APPLICATION, "Creating C150DgmSocket");
-        C150DgmSocket *sock = new C150DgmSocket();
+        C150DgmSocket *sock = new C150NastyDgmSocket(networkNastiness);
         sock->turnOnTimeouts(3000);
 
         // Tell the DGMSocket which server to talk to
         sock->setServerName(argv[serverArg]);
+        string serverName = argv[serverArg];
 
-        string filename = "independence.txt";
-        encodeSHA1(filename, obuf);
-        // auto s = SHA1.find("independence.txt");
+        // generate hashmap {filename, SHA1}
+        hashSHA1(sourceDir, SHA1);
 
-        hashSHA1(argv[2], SHA1);
         for (const auto &n : SHA1)
         {
-            // cout << "Key: " << n.first << endl;
             // Send the message to the server
             c150debug->printf(C150APPLICATION, "%s: Sending file: \"%s\"",
                               argv[0], n.first);
             auto sha = SHA1.find(n.first);
 
-            cout << "Computed by client:";
-            printSHA1(sha->second);
-            cout << n.first << endl;
+            // Send filename to server and read SHA1 encryption from server
 
-            sock->write((n.first).c_str(), (n.first).length() + 1); // +1 includes the null
-            c150debug->printf(C150APPLICATION, "%s: Returned from write, doing read()", argv[0]);
-            readFiveTimes(sock, incomingMessage, OBUF_SIZE);
+            int attempt = retryFiveTimes(sock, n.first, incomingMessage, OBUF_SIZE, serverName);
 
-            cout << "From server:";
-            printSHA1((unsigned char *)strtok(incomingMessage, ":"));
-            cout << strtok(incomingMessage, ":") << endl;
+            // DEBUGGING PRINT STATEMENTS
+
+            printf("file: %s, attempt %d\n", (char *)n.first.c_str(), attempt);
+            char status[100]; // NEEDSWORK: how not to use static atribitrary num?
+            if (strcmp((const char *)sha->second, (const char *)incomingMessage) == 0)
+            {
+                strcpy(status, (n.first).c_str());
+                strcat(status, " check succeeded");
+                toLog(n.first, "succeeded", attempt);
+            }
+            else
+            {
+                strcpy(status, (n.first).c_str());
+                strcat(status, " check failed");
+                toLog(n.first, "failed", attempt);
+            }
+
+            printf("status %s\n", status);
+            printf("len of status: %ld\n", strlen(status));
+            printf("incomingMessage from server: %s \n", incomingMessage);
+
+            // Write status to server and read ack from server
+            retryFiveTimes(sock, status, (char *)incomingMessage, OBUF_SIZE, serverName);
+
+            c150debug->printf(C150APPLICATION, "%s", incomingMessage);
         }
-
-        // Read SHA1 from server
-        // readFiveTimes(sock, (char *)incomingSHA1, OBUF_SIZE);
-
-        // char status[100]; // NEEDSWORK: how not to use static atribitrary num?
-
-        // if (strcmp((const char *)obuf, (const char *)incomingSHA1) == 0)
-        // {
-        //     strcpy(status, filename.c_str());
-        //     strcat(status, " check succeeded");
-        //     toLog(filename, "succeeded", 1);
-        // }
-        // else
-        // {
-        //     strcpy(status, filename.c_str());
-        //     strcat(status, " check failed");
-        //     toLog(filename, "failed", 1);
-        // }
-
-        // sock->write(status, strlen(status + 1));
-
-        // // Read ack from server
-        // readFiveTimes(sock, (char *)incomingMessage, OBUF_SIZE);
-
-        // c150debug->printf(C150APPLICATION, "%s", incomingMessage);
     }
 
     //
@@ -221,14 +221,17 @@ int main(int argc, char *argv[])
 }
 
 // NEEDSWORK: COMMENT THIS BIATCH
-void readFiveTimes(C150DgmSocket *sock, char *incomingMessage, int size)
+int retryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage, int size, string serverName)
 {
     int numAttempts = 0;
 
-    while (numAttempts < 6)
+    while (numAttempts < 5)
     {
-        sock->read(incomingMessage, size);
-        if (sock->timedout() == 0)
+        sock->write(outgoingMessage.c_str(), strlen(outgoingMessage.c_str()) + 1);
+
+        c150debug->printf(C150APPLICATION, "%s: Returned from write, doing read()", serverName);
+        int readlen = sock->read(incomingMessage, size);
+        if (sock->timedout() == 0 or readlen != 0)
             break;
 
         numAttempts++;
@@ -236,6 +239,7 @@ void readFiveTimes(C150DgmSocket *sock, char *incomingMessage, int size)
         if (numAttempts == 5)
             throw C150NetworkException("The server is not responding");
     }
+    return numAttempts + 1;
 }
 
 // NEEDS WORK
@@ -363,7 +367,7 @@ void checkAndPrintMessage(ssize_t readlen, char *msg, ssize_t bufferlen)
         throw C150NetworkException("Unexpected over length read in client");
     }
 
-    //
+    // encryption from server
     // Make sure server followed the rules and
     // sent a null-terminated string (well, we could
     // check that it's all legal characters, but

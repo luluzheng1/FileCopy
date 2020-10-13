@@ -64,8 +64,8 @@
 using namespace C150NETWORK; // for all the comp150 utilities
 
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
-void encodeSHA1(string filename, unsigned char obuf[]);
-void toLog(string filename, string status, int attempts);
+void encodeSHA1(string targetDir, string filename, unsigned char obuf[]);
+void toLog(string filename, string status);
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 //
 //                           main program
@@ -79,18 +79,20 @@ int main(int argc, char *argv[])
     //
     // Variable declarations
     //
-    ssize_t readlen;            // amount of data read from socket
-    char incomingFilename[512]; // received message data
+    ssize_t readlen;           // amount of data read from socket
+    char incomingMessage[512]; // received message data
     string filename;
-    int nastiness; // how aggressively do we drop packets, etc?
+    int networkNastiness; // how aggressively do we drop packets, etc?
+    int fileNastiness;
+    string targetDir;
 
     unsigned char obuf[20];
     //
     // Check command line and parse arguments
     //
-    if (argc != 2)
+    if (argc != 4)
     {
-        fprintf(stderr, "Correct syntxt is: %s <nastiness_number>\n", argv[0]);
+        fprintf(stderr, "Correct syntxt is: %s <networknastiness> <filenastiness> <targetdir>\n", argv[0]);
         exit(1);
     }
     if (strspn(argv[1], "0123456789") != strlen(argv[1]))
@@ -99,7 +101,10 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Correct syntxt is: %s <nastiness_number>\n", argv[0]);
         exit(4);
     }
-    nastiness = atoi(argv[1]); // convert command line string to integer
+    networkNastiness = atoi(argv[1]); // convert command line string to integer
+    fileNastiness = atoi(argv[2]);
+    (void)fileNastiness;
+    targetDir = argv[3];
 
     //
     //  Set up debug message logging
@@ -131,8 +136,8 @@ int main(int argc, char *argv[])
         // Create the socket
         //
         c150debug->printf(C150APPLICATION, "Creating C150NastyDgmSocket(nastiness=%d)",
-                          nastiness);
-        C150DgmSocket *sock = new C150NastyDgmSocket(nastiness);
+                          networkNastiness);
+        C150DgmSocket *sock = new C150NastyDgmSocket(networkNastiness);
         c150debug->printf(C150APPLICATION, "Ready to accept messages");
 
         //
@@ -145,7 +150,7 @@ int main(int argc, char *argv[])
             // Read a packet
             // -1 in size below is to leave room for null
             //
-            readlen = sock->read(incomingFilename, sizeof(incomingFilename) - 1);
+            readlen = sock->read(incomingMessage, sizeof(incomingMessage) - 1);
             if (readlen == 0)
             {
                 c150debug->printf(C150APPLICATION, "Read zero length message, trying again");
@@ -155,29 +160,29 @@ int main(int argc, char *argv[])
             //
             // Clean up the message in case it contained junk
             //
-            incomingFilename[readlen] = '\0';  // make sure null terminated
-            string incoming(incomingFilename); // Convert to C++ string ...it's slightly
-                                               // easier to work with, and cleanString
-                                               // expects it
-            cleanString(incoming);             // c150ids-supplied utility: changes
-                                               // non-printing characters to .
+            incomingMessage[readlen] = '\0';  // make sure null terminated
+            string incoming(incomingMessage); // Convert to C++ string ...it's slightly
+                                              // easier to work with, and cleanString
+                                              // expects it
+            cleanString(incoming);            // c150ids-supplied utility: changes
+                                              // non-printing characters to .
             filename = incoming;
             c150debug->printf(C150APPLICATION, "Successfully read %d bytes. Message=\"%s\"", readlen, incoming.c_str());
 
-            encodeSHA1(filename, obuf);
+            encodeSHA1(targetDir, filename, obuf);
 
-            string SHA1string((char *)obuf);
-            string returnMessage = SHA1string + ":" + filename;
-            cout << returnMessage << endl;
-            sock->write(returnMessage.c_str(), 21 + readlen);
+            c150debug->printf(C150APPLICATION, "%s: Sending SHA1 for file: \"%s\"", filename);
+            sock->write((const char *)obuf, 20);
 
-            // sock->write((const char *)obuf, 20);
-
+            // before move to confirmation
             readlen = 0;
 
+
+
+            // Read confirmation
             while (readlen == 0)
             {
-                readlen = sock->read(incomingFilename, sizeof(incomingFilename) - 1);
+                readlen = sock->read(incomingMessage, sizeof(incomingMessage) - 1);
                 if (readlen == 0)
                 {
                     c150debug->printf(C150APPLICATION, "Read zero length message, trying again");
@@ -185,17 +190,20 @@ int main(int argc, char *argv[])
                 }
             }
 
-            incomingFilename[readlen] = '\0'; // make sure null terminated
-            string status(incomingFilename);  // Convert to C++ string ...it's slightly
-                                              // easier to work with, and cleanString
-                                              // expects it
-            cleanString(status);              // c150ids-supplied utility: changes
-                                              // non-printing characters to .
+            incomingMessage[readlen] = '\0'; // make sure null terminated
+            string status(incomingMessage);  // Convert to C++ string ...it's slightly
+                                             // easier to work with, and cleanString
+                                             // expects it
+            cleanString(status);             // c150ids-supplied utility: changes
+                                             // non-printing characters to warandpeace..
             string expectedStatus = filename + " check succeeded";
-            if (strcmp(status.c_str(), expectedStatus.c_str()))
-                toLog(filename, "succeeded", 1);
+            cout << "From Client: " << status << endl;
+            cout << "Server expects: " << expectedStatus << endl;
+            cout << "Length of status: " << status.length() << endl;
+            if (strcmp(status.c_str(), expectedStatus.c_str()) == 0)
+                toLog(filename, "succeeded");
             else
-                toLog(filename, "failed", 1);
+                toLog(filename, "failed");
 
             sock->write(status.c_str(), strlen(status.c_str()));
         }
@@ -215,11 +223,11 @@ int main(int argc, char *argv[])
 }
 
 // Take in filename, and encrypt the content of the file using SHA1
-void encodeSHA1(string filename, unsigned char obuf[])
+void encodeSHA1(string targetDir, string filename, unsigned char obuf[])
 {
     ifstream *t; // SHA1 related variables
     stringstream *buffer;
-    t = new ifstream("TARGET/" + filename);
+    t = new ifstream(targetDir + "/" + filename);
     buffer = new stringstream;
     *buffer << t->rdbuf();
     SHA1((const unsigned char *)buffer->str().c_str(),
@@ -230,9 +238,9 @@ void encodeSHA1(string filename, unsigned char obuf[])
 }
 
 // TODO: Why is there a 30 second delay for log to be put into to GRADELOG?
-void toLog(string filename, string status, int attempt)
+void toLog(string filename, string status)
 {
-    *GRADING << "File: " + filename + " end-to-end check " + status + ", attempt " + to_string(attempt) << endl;
+    *GRADING << "File: " + filename + " end-to-end check " + status << endl;
     c150debug->printf(C150APPLICATION, "\"%s\": copy \"%s\"", filename, status);
 }
 
