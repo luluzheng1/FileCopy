@@ -59,6 +59,7 @@
 #include <string>
 #include <sstream>
 #include <stdio.h>
+#include <iomanip> 
 #include <openssl/sha.h>
 
 using namespace C150NETWORK; // for all the comp150 utilities
@@ -66,6 +67,8 @@ using namespace C150NETWORK; // for all the comp150 utilities
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
 void encodeSHA1(string targetDir, string filename, unsigned char obuf[]);
 void toLog(string filename, string status);
+void printSHA1(unsigned char *received);
+string SHA1toHex(unsigned char *inputString);
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 //
 //                           main program
@@ -81,6 +84,7 @@ int main(int argc, char *argv[])
     //
     ssize_t readlen;           // amount of data read from socket
     char incomingMessage[512]; // received message data
+    // char outgoingMessage[512];
     string filename;
     string messageType;
     string status;
@@ -167,13 +171,11 @@ int main(int argc, char *argv[])
             string incoming(incomingMessage); // Convert to C++ string ...it's slightly
                                               // easier to work with, and cleanString
                                               // expects it
-            cleanString(incoming);            // c150ids-supplied utility: changes
-                                              // non-printing characters to .
+
             c150debug->printf(C150APPLICATION, "Successfully read %d bytes. Message=\"%s\"", readlen, incoming.c_str());
 
             // Detect message type
             size_t pos = incoming.find(":");
-            
             filename = incoming.substr(0, pos);
             incoming.erase(0, pos + 1);
             pos = incoming.find(":");
@@ -183,24 +185,22 @@ int main(int argc, char *argv[])
             cout << messageType << endl;
 
             if (messageType.compare("filename") == 0) {
-                // Filename sent, return back SHA1 of the specified file
+                // Filename sent, return back SHA1hash of the specified file
                 encodeSHA1(targetDir, filename, obuf);
                 c150debug->printf(C150APPLICATION, "%s: Sending SHA1 for file: \"%s\"", filename);
-                string response = filename + ":" + (const char *)obuf;
+                string response = filename + ":" + SHA1toHex(obuf) + "\0";
 
+                cout << "Server computed: ";
+                cout << SHA1toHex(obuf) << endl;
                 cout << "Sending back: " << response << endl;
-                sock->write(response.c_str(), response.length());
-                // sock->write((const char *)obuf, 20)
+
+                sock->write(response.c_str(), strlen(response.c_str())+1);
             } else {
-                // Status sent, return back acknowledgement
+                // Received status, return back acknowledgement
                 string expectedStatus = "check succeeded";
                 incoming.erase(0, pos + 1);
                 pos = incoming.find(":");
                 status = incoming.substr(0, pos);
-
-                cout << "From Client: " << status << endl;
-                cout << "Server expects: " << expectedStatus << endl;
-                cout << "Length of status: " << status.length() << endl;
 
                 if (strcmp(status.c_str(), expectedStatus.c_str()) == 0)
                     toLog(filename, "succeeded");
@@ -208,8 +208,12 @@ int main(int argc, char *argv[])
                     toLog(filename, "failed");
 
                 string response = filename + ":" + status;
-                cout << "Sending back: " << response << endl;
-                sock->write(response.c_str(), strlen(response.c_str()));
+
+                cout << "From Client: " << status << endl;
+                cout << "Server expects: " << expectedStatus << endl;
+                cout << "Sending back: " << response << endl << endl;;
+
+                sock->write(response.c_str(), strlen(response.c_str())+1);
             }
         }
     }
@@ -227,7 +231,7 @@ int main(int argc, char *argv[])
     return 4;
 }
 
-// Take in filename, and encrypt the content of the file using SHA1
+// Take in filename, and hash the content of the file using SHA1
 void encodeSHA1(string targetDir, string filename, unsigned char obuf[])
 {
     ifstream *t; // SHA1 related variables
@@ -240,6 +244,25 @@ void encodeSHA1(string targetDir, string filename, unsigned char obuf[])
 
     delete t;
     delete buffer;
+}
+
+void printSHA1(unsigned char *received)
+{
+    for (int i = 0; i < 20; i++)
+    {
+        printf("%02x", (unsigned int)received[i]);
+    }
+    cout << endl;
+}
+
+string SHA1toHex(unsigned char *SHA1Hash) {
+    stringstream hexString;
+
+    for (int i = 0; i < 20; i++) {
+        hexString << std::setfill('0') << std::setw(2) << hex << int(SHA1Hash[i]);
+    }
+
+    return hexString.str();
 }
 
 // TODO: Why is there a 30 second delay for log to be put into to GRADELOG?
