@@ -54,21 +54,18 @@
 #include "c150nastydgmsocket.h"
 #include "c150debug.h"
 #include "c150grading.h"
+#include "sha1.cpp"
+#include "log.cpp"
 #include <fstream>
 #include <cstdlib>
 #include <string>
 #include <sstream>
 #include <stdio.h>
-#include <iomanip> 
 #include <openssl/sha.h>
 
 using namespace C150NETWORK; // for all the comp150 utilities
 
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
-void encodeSHA1(string targetDir, string filename, unsigned char obuf[]);
-void toLog(string filename, string status);
-void printSHA1(unsigned char *received);
-string SHA1toHex(unsigned char *inputString);
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 //
 //                           main program
@@ -184,7 +181,8 @@ int main(int argc, char *argv[])
             cout << filename << endl;
             cout << messageType << endl;
 
-            if (messageType.compare("filename") == 0) {
+            if (messageType.compare("filename") == 0)
+            {
                 // Filename sent, return back SHA1hash of the specified file
                 encodeSHA1(targetDir, filename, obuf);
                 c150debug->printf(C150APPLICATION, "%s: Sending SHA1 for file: \"%s\"", filename);
@@ -194,8 +192,10 @@ int main(int argc, char *argv[])
                 cout << SHA1toHex(obuf) << endl;
                 cout << "Sending back: " << response << endl;
 
-                sock->write(response.c_str(), strlen(response.c_str())+1);
-            } else {
+                sock->write(response.c_str(), strlen(response.c_str()) + 1);
+            }
+            else
+            {
                 // Received status, return back acknowledgement
                 string expectedStatus = "check succeeded";
                 incoming.erase(0, pos + 1);
@@ -203,17 +203,19 @@ int main(int argc, char *argv[])
                 status = incoming.substr(0, pos);
 
                 if (strcmp(status.c_str(), expectedStatus.c_str()) == 0)
-                    toLog(filename, "succeeded");
+                    toLogServer(filename, "succeeded");
                 else
-                    toLog(filename, "failed");
+                    toLogServer(filename, "failed");
 
                 string response = filename + ":" + status;
 
                 cout << "From Client: " << status << endl;
                 cout << "Server expects: " << expectedStatus << endl;
-                cout << "Sending back: " << response << endl << endl;;
+                cout << "Sending back: " << response << endl
+                     << endl;
+                ;
 
-                sock->write(response.c_str(), strlen(response.c_str())+1);
+                sock->write(response.c_str(), strlen(response.c_str()) + 1);
             }
         }
     }
@@ -229,124 +231,4 @@ int main(int argc, char *argv[])
 
     // This only executes if there was an error caught above
     return 4;
-}
-
-// Take in filename, and hash the content of the file using SHA1
-void encodeSHA1(string targetDir, string filename, unsigned char obuf[])
-{
-    ifstream *t; // SHA1 related variables
-    stringstream *buffer;
-    t = new ifstream(targetDir + "/" + filename);
-    buffer = new stringstream;
-    *buffer << t->rdbuf();
-    SHA1((const unsigned char *)buffer->str().c_str(),
-         (buffer->str()).length(), obuf);
-
-    delete t;
-    delete buffer;
-}
-
-void printSHA1(unsigned char *received)
-{
-    for (int i = 0; i < 20; i++)
-    {
-        printf("%02x", (unsigned int)received[i]);
-    }
-    cout << endl;
-}
-
-string SHA1toHex(unsigned char *SHA1Hash) {
-    stringstream hexString;
-
-    for (int i = 0; i < 20; i++) {
-        hexString << std::setfill('0') << std::setw(2) << hex << int(SHA1Hash[i]);
-    }
-
-    return hexString.str();
-}
-
-// TODO: Why is there a 30 second delay for log to be put into to GRADELOG?
-void toLog(string filename, string status)
-{
-    *GRADING << "File: " + filename + " end-to-end check " + status << endl;
-    c150debug->printf(C150APPLICATION, "\"%s\": copy \"%s\"", filename, status);
-}
-
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-//
-//                     setUpDebugLogging
-//
-//        For COMP 150-IDS, a set of standards utilities
-//        are provided for logging timestamped debug messages.
-//        You can use them to write your own messages, but
-//        more importantly, the communication libraries provided
-//        to you will write into the same logs.
-//
-//        As shown below, you can use the enableLogging
-//        method to choose which classes of messages will show up:
-//        You may want to turn on a lot for some debugging, then
-//        turn off some when it gets too noisy and your core code is
-//        working. You can also make up and use your own flags
-//        to create different classes of debug output within your
-//        application code
-//
-//        NEEDSWORK: should be factored and shared w/pingclient
-//        NEEDSWORK: document arguments
-//
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-void setUpDebugLogging(const char *logname, int argc, char *argv[])
-{
-
-    //
-    //           Choose where debug output should go
-    //
-    // The default is that debug output goes to cerr.
-    //
-    // Uncomment the following three lines to direct
-    // debug output to a file. Comment them to
-    // default to the console
-    //
-    // Note: the new DebugStream and ofstream MUST live after we return
-    // from setUpDebugLogging, so we have to allocate
-    // them dynamically.
-    //
-    //
-    // Explanation:
-    //
-    //     The first line is ordinary C++ to open a file
-    //     as an output stream.
-    //
-    //     The second line wraps that will all the services
-    //     of a comp 150-IDS debug stream, and names that filestreamp.
-    //
-    //     The third line replaces the global variable c150debug
-    //     and sets it to point to the new debugstream. Since c150debug
-    //     is what all the c150 debug routines use to find the debug stream,
-    //     you've now effectively overridden the default.
-    //
-    ofstream *outstreamp = new ofstream(logname);
-    DebugStream *filestreamp = new DebugStream(outstreamp);
-    DebugStream::setDefaultLogger(filestreamp);
-
-    //
-    //  Put the program name and a timestamp on each line of the debug log.
-    //
-    c150debug->setPrefix(argv[0]);
-    c150debug->enableTimestamp();
-
-    //
-    // Ask to receive all classes of debug message
-    //
-    // See c150debug.h for other classes you can enable. To get more than
-    // one class, you can or (|) the flags together and pass the combined
-    // mask to c150debug -> enableLogging
-    //
-    // By the way, the default is to disable all output except for
-    // messages written with the C150ALWAYSLOG flag. Those are typically
-    // used only for things like fatal errors. So, the default is
-    // for the system to run quietly without producing debug output.
-    //
-    c150debug->enableLogging(C150APPLICATION | C150NETWORKTRAFFIC |
-                             C150NETWORKDELIVERY);
 }
