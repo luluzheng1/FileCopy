@@ -69,7 +69,7 @@
 #include <sstream>
 #include <stdio.h>
 #include <stdlib.h>
-#include <iomanip> 
+#include <iomanip>
 #include <openssl/sha.h>
 #include <unordered_map>
 #include <sys/types.h>
@@ -83,7 +83,7 @@ typedef unordered_map<string, unsigned char *> sha1Map;
 // forward declarations
 void checkAndPrintMessage(ssize_t readlen, char *buf, ssize_t bufferlen);
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
-int tryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage, string serverName);
+void tryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage, string serverName);
 void toLog(string filename, string status, int attempts);
 void encodeSHA1(string filename, unsigned char obuf[]);
 void printSHA1(unsigned char *received);
@@ -105,8 +105,6 @@ const int networkNastinessArg = 2; // network nastiness is 2nd arg
 const int fileNastinessArg = 3;    // file nastiness is 3rd arg
 const int sourceDirArg = 4;        // source directory is 4th arg
 
-
-
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 //
 //                           main program
@@ -121,10 +119,10 @@ int main(int argc, char *argv[])
     // Variable declarations
     //
     ssize_t readlen; // amount of data read from socket
-    (void) readlen;
+    (void)readlen;
 
     char incomingMessage[512]; // received message data
-    char status[100]; // NEEDSWORK: how not to use static atribitrary num?
+    char status[100];          // NEEDSWORK: how not to use static atribitrary num?
 
     string clientFilename;
     string serverFilename;
@@ -132,7 +130,7 @@ int main(int argc, char *argv[])
     string serverSHA1Hash;
     unsigned char obuf[20];
     int attempts;
-    
+
     int networkNastiness;
     int fileNastiness;
     char *sourceDir;
@@ -152,7 +150,7 @@ int main(int argc, char *argv[])
     }
     networkNastiness = atoi(argv[networkNastinessArg]);
     fileNastiness = atoi(argv[fileNastinessArg]);
-    (void) fileNastiness;
+    (void)fileNastiness;
     sourceDir = argv[sourceDirArg];
 
     //
@@ -187,7 +185,7 @@ int main(int argc, char *argv[])
             if ((strcmp(sourceFile->d_name, ".") == 0) ||
                 (strcmp(sourceFile->d_name, "..") == 0))
                 continue; // never copy . or ..
-            
+
             clientFilename = sourceFile->d_name;
             encodeSHA1(clientFilename, obuf);
 
@@ -199,9 +197,10 @@ int main(int argc, char *argv[])
             attempts = 1;
 
             // Keep sending filename until client receives SHA1hash computed by server
-            while (1) {
+            while (1)
+            {
                 // Send filename to server and read SHA1 encryption from server
-                tryFiveTimes(sock, clientFilename + ":filename" , incomingMessage, serverName);
+                tryFiveTimes(sock, clientFilename + ":filename", incomingMessage, serverName);
                 printf("\nFile: %s, attempt %d\n", (char *)clientFilename.c_str(), attempts);
 
                 // Parse the response
@@ -224,7 +223,8 @@ int main(int argc, char *argv[])
                 cout << serverSHA1Hash << endl;
 
                 // Make sure returned SHA1 is for this file
-                if (serverFilename.compare(clientFilename) == 0) {
+                if (serverFilename.compare(clientFilename) == 0)
+                {
                     strcpy(status, clientFilename.c_str());
                     strcat(status, ":status:");
 
@@ -243,18 +243,15 @@ int main(int argc, char *argv[])
                     printf("Status: %s\n", status);
 
                     break;
-                }   
-
-                attempts ++;          
+                }
             }
 
             // Write status to server and read ack from server
             tryFiveTimes(sock, status, (char *)incomingMessage, serverName);
 
             c150debug->printf(C150APPLICATION, "%s", incomingMessage);
-
         }
-        
+
         closedir(src);
     }
 
@@ -275,27 +272,19 @@ int main(int argc, char *argv[])
 }
 
 // NEEDSWORK: COMMENT THIS BIATCH
-int tryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage, string serverName)
+void tryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage, string serverName)
 {
-    int numAttempts = 0;
-
     cout << "Sending: " + outgoingMessage << endl;
-
-    while (numAttempts < 5)
+    for (int numAttempts = 0; numAttempts < 10; numAttempts++)
     {
         sock->write(outgoingMessage.c_str(), strlen(outgoingMessage.c_str()) + 1);
 
         c150debug->printf(C150APPLICATION, "%s: Returned from write, doing read()", serverName);
         int readlen = sock->read(incomingMessage, 512);
         if (sock->timedout() == 0 or readlen != 0)
-            break;
-
-        numAttempts++;
-
-        if (numAttempts == 5)
-            throw C150NetworkException("The server is not responding");
+            return;
     }
-    return numAttempts + 1;
+    throw C150NetworkException("The server is not responding");
 }
 
 // NEEDS WORK
@@ -351,10 +340,12 @@ void encodeSHA1(string filename, unsigned char obuf[])
 //     closedir(src);
 // }
 
-string SHA1toHex(unsigned char *SHA1Hash) {
+string SHA1toHex(unsigned char *SHA1Hash)
+{
     stringstream hexString;
 
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < 20; i++)
+    {
         hexString << std::setfill('0') << std::setw(2) << hex << int(SHA1Hash[i]);
         // hexString << hex << int(SHA1Hash[i]);
     }
