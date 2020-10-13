@@ -62,13 +62,14 @@
 #include "c150debug.h"
 #include "c150grading.h"
 #include "c150nastydgmsocket.h"
-// #include "nastyfiletest.cpp"
 #include <dirent.h>
 #include <fstream>
 #include <string>
 #include <cstdlib>
 #include <sstream>
 #include <stdio.h>
+#include <stdlib.h>
+#include <iomanip> 
 #include <openssl/sha.h>
 #include <unordered_map>
 #include <sys/types.h>
@@ -82,12 +83,11 @@ typedef unordered_map<string, unsigned char *> sha1Map;
 // forward declarations
 void checkAndPrintMessage(ssize_t readlen, char *buf, ssize_t bufferlen);
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
-int retryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage, int size, string serverName);
+int tryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage, string serverName);
 void toLog(string filename, string status, int attempts);
 void encodeSHA1(string filename, unsigned char obuf[]);
-// void printSHA1(unsigned char *received, unsigned char *expected);
 void printSHA1(unsigned char *received);
-void hashSHA1(char *sourceFile, sha1Map &SHA1map);
+string SHA1toHex(unsigned char *inputString);
 void checkDirectory(char *dirname);
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -105,8 +105,8 @@ const int networkNastinessArg = 2; // network nastiness is 2nd arg
 const int fileNastinessArg = 3;    // file nastiness is 3rd arg
 const int sourceDirArg = 4;        // source directory is 4th arg
 
-unsigned char obuf[20];
-int OBUF_SIZE = 20;
+
+
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 //
 //                           main program
@@ -121,13 +121,21 @@ int main(int argc, char *argv[])
     // Variable declarations
     //
     ssize_t readlen; // amount of data read from socket
-    (void)readlen;
+    (void) readlen;
+
     char incomingMessage[512]; // received message data
+    char status[100]; // NEEDSWORK: how not to use static atribitrary num?
+
+    string clientFilename;
+    string serverFilename;
+    string clientSHA1Hash;
+    string serverSHA1Hash;
+    unsigned char obuf[20];
+    int attempts;
+    
     int networkNastiness;
     int fileNastiness;
     char *sourceDir;
-
-    sha1Map SHA1 = {};
 
     //
     //  Set up debug message logging
@@ -144,7 +152,7 @@ int main(int argc, char *argv[])
     }
     networkNastiness = atoi(argv[networkNastinessArg]);
     fileNastiness = atoi(argv[fileNastinessArg]);
-    (void)fileNastiness;
+    (void) fileNastiness;
     sourceDir = argv[sourceDirArg];
 
     //
@@ -162,46 +170,92 @@ int main(int argc, char *argv[])
         sock->setServerName(argv[serverArg]);
         string serverName = argv[serverArg];
 
-        // generate hashmap {filename, SHA1}
-        hashSHA1(sourceDir, SHA1);
+        checkDirectory(sourceDir);
+        DIR *src;
+        struct dirent *sourceFile; // Directory entry for source file
 
-        for (const auto &n : SHA1)
+        src = opendir(sourceDir);
+        if (src == NULL)
         {
+            fprintf(stderr, "Error opening source directory %s\n", sourceDir);
+            exit(8);
+        }
+
+        while ((sourceFile = readdir(src)) != NULL)
+        {
+            // skip the . and .. names
+            if ((strcmp(sourceFile->d_name, ".") == 0) ||
+                (strcmp(sourceFile->d_name, "..") == 0))
+                continue; // never copy . or ..
+            
+            clientFilename = sourceFile->d_name;
+            encodeSHA1(clientFilename, obuf);
+
             // Send the message to the server
             c150debug->printf(C150APPLICATION, "%s: Sending file: \"%s\"",
-                              argv[0], n.first);
-            auto sha = SHA1.find(n.first);
+                              argv[0], clientFilename);
+            clientSHA1Hash = SHA1toHex(obuf);
 
-            // Send filename to server and read SHA1 encryption from server
+            attempts = 1;
 
-            int attempt = retryFiveTimes(sock, n.first, incomingMessage, OBUF_SIZE, serverName);
+            // Keep sending filename until client receives SHA1hash computed by server
+            while (1) {
+                // Send filename to server and read SHA1 encryption from server
+                tryFiveTimes(sock, clientFilename + ":filename" , incomingMessage, serverName);
+                printf("\nFile: %s, attempt %d\n", (char *)clientFilename.c_str(), attempts);
 
-            // DEBUGGING PRINT STATEMENTS
+                // Parse the response
+                string incoming(incomingMessage); // Convert to C++ string ...it's slightly
+                                                  // easier to work with, and cleanString
+                                                  // expects it
 
-            printf("file: %s, attempt %d\n", (char *)n.first.c_str(), attempt);
-            char status[100]; // NEEDSWORK: how not to use static atribitrary num?
-            if (strcmp((const char *)sha->second, (const char *)incomingMessage) == 0)
-            {
-                strcpy(status, (n.first).c_str());
-                strcat(status, " check succeeded");
-                toLog(n.first, "succeeded", attempt);
+                cout << "Response from server: " + incoming << endl;
+
+                // In the response, filename and SHA1hash are separated by a colon
+                size_t pos = incoming.find(":");
+                serverFilename = incoming.substr(0, pos);
+                incoming.erase(0, pos + 1);
+                serverSHA1Hash = incoming.substr(0, 40);
+
+                cout << "Client calculated: ";
+                cout << clientSHA1Hash << endl;
+
+                cout << "Server sent: ";
+                cout << serverSHA1Hash << endl;
+
+                // Make sure returned SHA1 is for this file
+                if (serverFilename.compare(clientFilename) == 0) {
+                    strcpy(status, clientFilename.c_str());
+                    strcat(status, ":status:");
+
+                    // Check SHA1hashes computed by client and returned by server
+                    if (clientSHA1Hash.compare(serverSHA1Hash) == 0)
+                    {
+                        strcat(status, "check succeeded");
+                        toLog(clientFilename, "succeeded", attempts);
+                    }
+                    else
+                    {
+                        strcat(status, "check failed");
+                        toLog(clientFilename, "failed", attempts);
+                    }
+
+                    printf("Status: %s\n", status);
+
+                    break;
+                }   
+
+                attempts ++;          
             }
-            else
-            {
-                strcpy(status, (n.first).c_str());
-                strcat(status, " check failed");
-                toLog(n.first, "failed", attempt);
-            }
-
-            printf("status %s\n", status);
-            printf("len of status: %ld\n", strlen(status));
-            printf("incomingMessage from server: %s \n", incomingMessage);
 
             // Write status to server and read ack from server
-            retryFiveTimes(sock, status, (char *)incomingMessage, OBUF_SIZE, serverName);
+            tryFiveTimes(sock, status, (char *)incomingMessage, serverName);
 
             c150debug->printf(C150APPLICATION, "%s", incomingMessage);
+
         }
+        
+        closedir(src);
     }
 
     //
@@ -221,16 +275,18 @@ int main(int argc, char *argv[])
 }
 
 // NEEDSWORK: COMMENT THIS BIATCH
-int retryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage, int size, string serverName)
+int tryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage, string serverName)
 {
     int numAttempts = 0;
+
+    cout << "Sending: " + outgoingMessage << endl;
 
     while (numAttempts < 5)
     {
         sock->write(outgoingMessage.c_str(), strlen(outgoingMessage.c_str()) + 1);
 
         c150debug->printf(C150APPLICATION, "%s: Returned from write, doing read()", serverName);
-        int readlen = sock->read(incomingMessage, size);
+        int readlen = sock->read(incomingMessage, 512);
         if (sock->timedout() == 0 or readlen != 0)
             break;
 
@@ -258,14 +314,6 @@ void printSHA1(unsigned char *received)
         printf("%02x", (unsigned int)received[i]);
     }
     cout << endl;
-
-    // cout << "Computed:" << endl;
-    // for (int i = 0; i < 20; i++)
-    // {
-    //     printf("%02x", (unsigned int)expected[i]);
-    // }
-
-    // cout << endl;
 }
 
 // Take in filename, and encrypt the content of the file using SHA1
@@ -283,37 +331,35 @@ void encodeSHA1(string filename, unsigned char obuf[])
     delete buffer;
 }
 
-void hashSHA1(char *sf, sha1Map &SHA1map)
-{
-    checkDirectory(sf);
+// void hashSHA1(char *sf, sha1Map &SHA1map)
+// {
 
-    DIR *src;
-    struct dirent *sourceFile; // Directory entry for source file
+//     while ((sourceFile = readdir(src)) != NULL)
+//     {
+//         // skip the . and .. names
+//         if ((strcmp(sourceFile->d_name, ".") == 0) ||
+//             (strcmp(sourceFile->d_name, "..") == 0))
+//             continue; // never copy . or ..
 
-    unsigned char buf[20];
+//         encodeSHA1(sourceFile->d_name, buf);
 
-    src = opendir(sf);
-    if (src == NULL)
-    {
-        fprintf(stderr, "Error opening source directory %s\n", sf);
-        exit(8);
+//         unsigned char *p = new unsigned char[20];
+//         strcpy((char *)p, (char *)buf);
+
+//         SHA1map.insert({sourceFile->d_name, p});
+//     }
+//     closedir(src);
+// }
+
+string SHA1toHex(unsigned char *SHA1Hash) {
+    stringstream hexString;
+
+    for (int i = 0; i < 20; i++) {
+        hexString << std::setfill('0') << std::setw(2) << hex << int(SHA1Hash[i]);
+        // hexString << hex << int(SHA1Hash[i]);
     }
 
-    while ((sourceFile = readdir(src)) != NULL)
-    {
-        // skip the . and .. names
-        if ((strcmp(sourceFile->d_name, ".") == 0) ||
-            (strcmp(sourceFile->d_name, "..") == 0))
-            continue; // never copy . or ..
-
-        encodeSHA1(sourceFile->d_name, buf);
-
-        unsigned char *p = new unsigned char[20];
-        strcpy((char *)p, (char *)buf);
-
-        SHA1map.insert({sourceFile->d_name, p});
-    }
-    closedir(src);
+    return hexString.str();
 }
 
 // ------------------------------------------------------
