@@ -54,14 +54,14 @@ void performEndToEnd(char *sDir, string serverName, C150DgmSocket *sock)
         {
             // Send filename to server and read SHA1 encryption from server
             tryFiveTimes(sock, clientFilename + ":filename", incomingMessage, serverName);
-            printf("\nFile: %s, attempt %d\n", (char *)clientFilename.c_str(), attempts);
+            // printf("\nFile: %s, attempt %d\n", (char *)clientFilename.c_str(), attempts);
 
             // Parse the response
             string incoming(incomingMessage); // Convert to C++ string ...it's slightly
                                               // easier to work with, and cleanString
                                               // expects it
 
-            cout << "Response from server: " + incoming << endl;
+            // cout << "Response from server: " + incoming << endl;
 
             // In the response, filename and SHA1hash are separated by a colon
             size_t pos = incoming.find(":");
@@ -69,11 +69,11 @@ void performEndToEnd(char *sDir, string serverName, C150DgmSocket *sock)
             incoming.erase(0, pos + 1);
             serverSHA1Hash = incoming.substr(0, 40);
 
-            cout << "Client calculated: ";
-            cout << clientSHA1Hash << endl;
+            // cout << "Client calculated: ";
+            // cout << clientSHA1Hash << endl;
 
-            cout << "Server sent: ";
-            cout << serverSHA1Hash << endl;
+            // cout << "Server sent: ";
+            // cout << serverSHA1Hash << endl;
 
             // Make sure returned SHA1 is for this file
             if (serverFilename.compare(clientFilename) == 0)
@@ -93,7 +93,7 @@ void performEndToEnd(char *sDir, string serverName, C150DgmSocket *sock)
                     toLogClient(clientFilename, "failed", attempts);
                 }
 
-                printf("Status: %s\n", status);
+                // printf("Status: %s\n", status);
 
                 break;
             }
@@ -111,7 +111,7 @@ void performEndToEnd(char *sDir, string serverName, C150DgmSocket *sock)
 // NEEDSWORK: COMMENT THIS BIATCH
 void tryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage, string serverName)
 {
-    cout << "Sending: " + outgoingMessage << endl;
+    // cout << "Sending: " + outgoingMessage << endl;
     for (int numAttempts = 0; numAttempts < 10; numAttempts++)
     {
         sock->write(outgoingMessage.c_str(), strlen(outgoingMessage.c_str()) + 1);
