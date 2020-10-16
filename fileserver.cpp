@@ -178,8 +178,8 @@ int main(int argc, char *argv[])
             pos = incoming.find(":");
             messageType = incoming.substr(0, pos);
 
-            cout << filename << endl;
-            cout << messageType << endl;
+            // cout << filename << endl;
+            // cout << messageType << endl;
 
             if (messageType.compare("filename") == 0)
             {
@@ -188,9 +188,9 @@ int main(int argc, char *argv[])
                 c150debug->printf(C150APPLICATION, "%s: Sending SHA1 for file: \"%s\"", filename);
                 string response = filename + ":" + SHA1toHex(obuf) + "\0";
 
-                cout << "Server computed: ";
-                cout << SHA1toHex(obuf) << endl;
-                cout << "Sending back: " << response << endl;
+                // cout << "Server computed: ";
+                // cout << SHA1toHex(obuf) << endl;
+                // cout << "Sending back: " << response << endl;
 
                 sock->write(response.c_str(), strlen(response.c_str()) + 1);
             }
@@ -209,10 +209,10 @@ int main(int argc, char *argv[])
 
                 string response = filename + ":" + status;
 
-                cout << "From Client: " << status << endl;
-                cout << "Server expects: " << expectedStatus << endl;
-                cout << "Sending back: " << response << endl
-                     << endl;
+                // cout << "From Client: " << status << endl;
+                // cout << "Server expects: " << expectedStatus << endl;
+                // cout << "Sending back: " << response << endl
+                //  << endl;
                 ;
 
                 sock->write(response.c_str(), strlen(response.c_str()) + 1);
