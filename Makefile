@@ -42,8 +42,9 @@ C150AR = $(C150LIB)c150ids.a
 
 LDFLAGS = 
 INCLUDES = $(C150LIB)c150dgmsocket.h $(C150LIB)c150nastydgmsocket.h $(C150LIB)c150network.h $(C150LIB)c150exceptions.h $(C150LIB)c150debug.h $(C150LIB)c150utility.h $(C150LIB)c150grading.h
+DEPS = SafeFile.h 
 
-all: nastyfiletest makedatafile sha1test fileclient fileserver
+all: nastyfiletest makedatafile sha1test fileclient fileserver safefiletest
 
 
 #
@@ -73,8 +74,14 @@ fileclient: fileclient.o $(C150AR) $(INCLUDES)
 #
 # Build the fileserver
 #
-fileserver: fileserver.o $(C150AR) $(INCLUDES)
-	$(CPP) -o fileserver fileserver.o -lssl -lcrypto $(C150AR)
+fileserver: fileserver.o safefile.o $(C150AR) $(INCLUDES)
+	$(CPP) -o fileserver  safefile.o fileserver.o -lssl -lcrypto $(C150AR)
+
+#
+# Build the fileservertest
+#
+safefiletest: safefiletest.o safefile.o $(C150AR) $(INCLUDES)
+	$(CPP) -o safefiletest safefiletest.o safefile.o -lssl -lcrypto $(C150AR)
 
 #
 # To get any .o, compile the corresponding .cpp
@@ -88,6 +95,6 @@ fileserver: fileserver.o $(C150AR) $(INCLUDES)
 # for forcing complete rebuild#
 
 clean:
-	 rm -f nastyfiletest sha1test makedatafile fileclient fileserver *.o *.txt
+	 rm -f nastyfiletest sha1test makedatafile fileclient fileserver safefiletest *.o *.txt
 
 
