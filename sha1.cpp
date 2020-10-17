@@ -44,7 +44,7 @@ string SHA1toHex(unsigned char *SHA1Hash)
 
     for (int i = 0; i < 20; i++)
     {
-        hexString << std::setfill('0') << std::setw(2) << hex << int(SHA1Hash[i]);
+        hexString << setfill('0') << setw(2) << hex << int(SHA1Hash[i]);
         // hexString << hex << int(SHA1Hash[i]);
     }
 
