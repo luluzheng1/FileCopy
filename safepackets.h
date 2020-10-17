@@ -30,7 +30,7 @@ protected:
     int numPkts;
     string fileName;
     NASTYFILE inputFile;
-    int arraySize;
+    int nastiness;
 
 public:
     SafePackets();

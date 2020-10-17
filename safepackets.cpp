@@ -12,12 +12,14 @@ size_t HEADERSIZE = 4;
 
 SafePackets::SafePackets() : inputFile(0)
 {
+    nastiness = 0;
     numPkts = 0;
     fileName = "";
 }
 
-SafePackets::SafePackets(int nastiness) : inputFile(nastiness)
+SafePackets::SafePackets(int n) : inputFile(n)
 {
+    nastiness = n;
     numPkts = 0;
     fileName = "";
 }
