@@ -44,7 +44,7 @@ void SafeFile::writeFile(string filename) {
     //     writePacket(packets.at(i), filename);
     // }
 
-    writePacket(packets.at(i), filename);
+    writePacket(packets.at(3172), filename);
     outputFile.fclose();
 }
 
