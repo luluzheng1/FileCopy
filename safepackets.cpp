@@ -129,7 +129,9 @@ int SafePackets::setHashFreq(string filePath)
     // TODO: justify based on nastiness
     long size = getFileSize(filePath);
 
-    if (size > 1e6)
+    if (nastiness == 0)
+        return 0;
+    else if (size > 1e6)
         return 25;
     else if (size > 1e4)
         return 10;
