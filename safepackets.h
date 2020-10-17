@@ -17,24 +17,25 @@ class SafePackets
 {
 private:
     string mostCommonPkt();
-    void addHeader(string &pkt, string header);
     string generateHeader();
     size_t readFile(char *buffer);
+    long getFileSize(string sourceName);
+    string getSafePacket(char *buffer, int hashFreq);
+    int setHashFreq(string filePath);
 
 protected:
     sha1Map pktMap;
     vector<string> pktArray;
     int numPkts;
     string fileName;
-    long offset;
     NASTYFILE inputFile;
+    int arraySize;
 
 public:
     SafePackets();
     SafePackets(int nastiness);
-    void arrayInsert(string pkt);
     void fileToPackets(string sourcename);
-    string getSafePacket(char *buffer);
+
     ~SafePackets();
 };
 

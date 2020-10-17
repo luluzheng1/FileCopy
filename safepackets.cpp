@@ -2,24 +2,24 @@
 #include "sha1.cpp"
 #include "iomanip"
 #include <openssl/sha.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
-size_t BODYSIZE = 508;
-size_t PKTSIZE = 512;
+size_t BODYSIZE = 252;
+size_t PKTSIZE = 256;
 size_t HEADERSIZE = 4;
-int HASHFREQ = 10;
 
 SafePackets::SafePackets() : inputFile(0)
 {
     numPkts = 0;
     fileName = "";
-    offset = -BODYSIZE;
 }
 
 SafePackets::SafePackets(int nastiness) : inputFile(nastiness)
 {
     numPkts = 0;
     fileName = "";
-    offset = -BODYSIZE;
 }
 
 size_t SafePackets::readFile(char *buffer)
@@ -29,12 +29,12 @@ size_t SafePackets::readFile(char *buffer)
     return len;
 }
 
-string SafePackets::getSafePacket(char *buffer)
+string SafePackets::getSafePacket(char *buffer, int hashFreq)
 {
     size_t len;
     unsigned char obuf[20];
 
-    for (int i = 0; i < HASHFREQ; i++)
+    for (int i = 0; i < hashFreq; i++)
     {
         len = readFile(buffer);
         if (len == 0)
@@ -59,10 +59,10 @@ string SafePackets::getSafePacket(char *buffer)
 void SafePackets::fileToPackets(string sourceName)
 {
     void *fopenretval;
-    char buffer[508];
+    char buffer[256];
     string pkt;
 
-    fopenretval = inputFile.fopen(sourceName.c_str(), "w+ ");
+    fopenretval = inputFile.fopen(sourceName.c_str(), "rb");
 
     if (fopenretval == NULL)
     {
@@ -70,16 +70,17 @@ void SafePackets::fileToPackets(string sourceName)
         exit(12);
     }
 
+    int hashFreq = setHashFreq(sourceName);
     while (inputFile.feof() == 0)
     {
         memset(buffer, 0, BODYSIZE);
-        pkt = getSafePacket(buffer);
+        pkt = getSafePacket(buffer, hashFreq);
         if (pkt == "-1")
             break;
         numPkts++;
-        string hd = generateHeader();
-        addHeader(pkt, hd);
-        cout << pkt << endl;
+        string header = generateHeader();
+        pkt = header + pkt;
+        pktArray.push_back(pkt);
     }
 
     if (inputFile.fclose() != 0)
@@ -87,11 +88,6 @@ void SafePackets::fileToPackets(string sourceName)
         cerr << "Error closing input file " << sourceName << " errno=" << strerror(errno) << endl;
         exit(16);
     }
-}
-
-void SafePackets::addHeader(string &pkt, string header)
-{
-    pkt = header + pkt;
 }
 
 string SafePackets::generateHeader()
@@ -116,6 +112,28 @@ string SafePackets::mostCommonPkt()
     }
     pktMap.clear();
     return pkt;
+}
+
+long SafePackets::getFileSize(string filePath)
+{
+    struct stat stat_buf;
+    int rc = stat(filePath.c_str(), &stat_buf);
+    return rc == 0 ? stat_buf.st_size : -1;
+}
+
+int SafePackets::setHashFreq(string filePath)
+{
+    // TODO: justify based on nastiness
+    long size = getFileSize(filePath);
+
+    if (size > 1e6)
+        return 25;
+    else if (size > 1e4)
+        return 10;
+    else if (size > 1e3)
+        return 7;
+    else
+        return 5;
 }
 
 SafePackets::~SafePackets() {}
