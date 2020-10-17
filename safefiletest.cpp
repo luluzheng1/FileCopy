@@ -1,7 +1,7 @@
 #include "safefile.h"
 #include "c150nastyfile.h" // for c150nastyfile & framework
 
-#include <utility> 
+#include <utility>
 #include <string>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,18 +12,20 @@ int main(int argc, char *argv[])
 {
     SafeFile fileoutput(atoi(argv[1]));
 
-    FILE * file;
+    FILE *file;
     size_t readlen = 0;
     char buffer[509];
     int id = 1;
 
     file = fopen("SRC/warandpeace.txt", "rb");
-    fileoutput.setNumPackets(6346);
+    fileoutput.setFile(6346, "test.txt");
 
-    while (1) {
+    while (1)
+    {
         buffer[0] = '\0';
         readlen = fread(buffer, 1, 508, file);
-        if (readlen == 0) {
+        if (readlen == 0)
+        {
             break;
         }
         buffer[readlen] = '\0';
@@ -35,7 +37,7 @@ int main(int argc, char *argv[])
 
     fclose(file);
 
-    fileoutput.writeFile("test.txt");
+    fileoutput.writeFile();
 
     // file = fopen("test.txt", "rb");
     // cout << "\nReading test.txt:!\n";

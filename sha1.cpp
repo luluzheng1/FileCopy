@@ -1,16 +1,10 @@
-#include <string>
+#include "sha1.h"
 #include <sstream>
 #include <fstream>
 #include <openssl/sha.h>
 #include <stdlib.h>
 #include <iostream>
 #include <iomanip>
-
-using namespace std; // for C++ std library
-
-void encodeSHA1(string filename, unsigned char obuf[]);
-void printSHA1(unsigned char *received);
-string SHA1toHex(unsigned char *inputString);
 
 // Take in filename, and encrypt the content of the file using SHA1
 void encodeSHA1(string dirname, string filename, unsigned char obuf[])

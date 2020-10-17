@@ -35,6 +35,8 @@ protected:
 public:
     SafePackets();
     SafePackets(int nastiness);
+    int getNumPkts();
+    string getPkt(int index);
     void fileToPackets(string sourcename);
 
     ~SafePackets();

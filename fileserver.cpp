@@ -54,8 +54,9 @@
 #include "c150nastydgmsocket.h"
 #include "c150debug.h"
 #include "c150grading.h"
-#include "sha1.cpp"
-#include "log.cpp"
+#include "safefile.h"
+#include "sha1.h"
+#include "log.h"
 #include <fstream>
 #include <cstdlib>
 #include <string>
@@ -66,6 +67,7 @@
 using namespace C150NETWORK; // for all the comp150 utilities
 
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
+void interpretMessage(string incomingMessage, int *numPackets, string *filename);
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 //
 //                           main program
@@ -83,14 +85,15 @@ int main(int argc, char *argv[])
     char incomingMessage[512]; // received message data
     // char outgoingMessage[512];
     string filename;
-    string messageType;
+    string header;
     string status;
+    int numPackets;
 
     int networkNastiness; // how aggressively do we drop packets, etc?
     int fileNastiness;
     string targetDir;
 
-    unsigned char obuf[20];
+    // unsigned char obuf[20];
     //
     // Check command line and parse arguments
     //
@@ -109,6 +112,7 @@ int main(int argc, char *argv[])
     fileNastiness = atoi(argv[2]);
     (void)fileNastiness;
     targetDir = argv[3];
+    SafeFile safe(fileNastiness);
 
     //
     //  Set up debug message logging
@@ -172,51 +176,73 @@ int main(int argc, char *argv[])
             c150debug->printf(C150APPLICATION, "Successfully read %d bytes. Message=\"%s\"", readlen, incoming.c_str());
 
             // Detect message type
-            size_t pos = incoming.find(":");
-            filename = incoming.substr(0, pos);
-            incoming.erase(0, pos + 1);
-            pos = incoming.find(":");
-            messageType = incoming.substr(0, pos);
+            header = incoming.substr(0, 4);
 
-            // cout << filename << endl;
-            // cout << messageType << endl;
-
-            if (messageType.compare("filename") == 0)
+            if (header.compare("BEG/") == 0)
             {
-                // Filename sent, return back SHA1hash of the specified file
-                encodeSHA1(targetDir, filename, obuf);
-                c150debug->printf(C150APPLICATION, "%s: Sending SHA1 for file: \"%s\"", filename);
-                string response = filename + ":" + SHA1toHex(obuf) + "\0";
+                interpretMessage(incoming, &numPackets, &filename);
 
-                // cout << "Server computed: ";
-                // cout << SHA1toHex(obuf) << endl;
-                // cout << "Sending back: " << response << endl;
+                cout << "Number of packets: " << numPackets << endl;
+                cout << "Filename: " << filename << endl;
 
-                sock->write(response.c_str(), strlen(response.c_str()) + 1);
+                safe.setFile(numPackets, filename);
+                safe.setHashFreq();
+            }
+            else if (header.compare("END/") == 0)
+            {
+                safe.computeMissing();
+                unordered_set<int> missingIDs = safe.getMissing();
+
+                if (missingIDs.empty())
+                {
+                    safe.writeFile();
+
+                    // Request end-to-end check once server receives last file
+                    // ETE/
+                    continue;
+                }
             }
             else
             {
-                // Received status, return back acknowledgement
-                string expectedStatus = "check succeeded";
-                incoming.erase(0, pos + 1);
-                pos = incoming.find(":");
-                status = incoming.substr(0, pos);
-
-                if (strcmp(status.c_str(), expectedStatus.c_str()) == 0)
-                    toLogServer(filename, "succeeded");
-                else
-                    toLogServer(filename, "failed");
-
-                string response = filename + ":" + status;
-
-                // cout << "From Client: " << status << endl;
-                // cout << "Server expects: " << expectedStatus << endl;
-                // cout << "Sending back: " << response << endl
-                //  << endl;
-                ;
-
-                sock->write(response.c_str(), strlen(response.c_str()) + 1);
+                safe.storePacket(incoming);
             }
+
+            // if (messageType.compare("filename") == 0)
+            // {
+            //     // Filename sent, return back SHA1hash of the specified file
+            //     encodeSHA1(targetDir, filename, obuf);
+            //     c150debug->printf(C150APPLICATION, "%s: Sending SHA1 for file: \"%s\"", filename);
+            //     string response = filename + ":" + SHA1toHex(obuf) + "\0";
+
+            //     // cout << "Server computed: ";
+            //     // cout << SHA1toHex(obuf) << endl;
+            //     // cout << "Sending back: " << response << endl;
+
+            //     sock->write(response.c_str(), strlen(response.c_str()) + 1);
+            // }
+            // else
+            // {
+            //     // Received status, return back acknowledgement
+            //     string expectedStatus = "check succeeded";
+            //     incoming.erase(0, pos + 1);
+            //     pos = incoming.find(":");
+            //     status = incoming.substr(0, pos);
+
+            //     if (strcmp(status.c_str(), expectedStatus.c_str()) == 0)
+            //         toLogServer(filename, "succeeded");
+            //     else
+            //         toLogServer(filename, "failed");
+
+            //     string response = filename + ":" + status;
+
+            //     // cout << "From Client: " << status << endl;
+            //     // cout << "Server expects: " << expectedStatus << endl;
+            //     // cout << "Sending back: " << response << endl
+            //     //  << endl;
+            //     ;
+
+            //     sock->write(response.c_str(), strlen(response.c_str()) + 1);
+            // }
         }
     }
 
@@ -231,4 +257,13 @@ int main(int argc, char *argv[])
 
     // This only executes if there was an error caught above
     return 4;
+}
+
+void interpretMessage(string incomingMessage, int *numPackets, string *filename)
+{
+    incomingMessage.erase(0, 4);
+    int pos = incomingMessage.find("/");
+    *numPackets = stoi(incomingMessage.substr(0, pos + 1));
+    incomingMessage.erase(0, pos + 1);
+    *filename = incomingMessage;
 }

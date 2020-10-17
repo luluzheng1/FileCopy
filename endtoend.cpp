@@ -1,18 +1,10 @@
-
-#include "c150dgmsocket.h"
-#include "log.cpp"
-#include "sha1.cpp"
+#include "endtoend.h"
+#include "sha1.h"
 #include <string>
 #include <cstdlib>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
-using namespace std;         // for C++ std library
-using namespace C150NETWORK; // for all the comp150 utilities
-
-void performEndToEnd(char *sDir, string servername, C150DgmSocket *sock);
-void tryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage, string serverName);
-void checkDirectory(char *dirname);
 
 void performEndToEnd(char *sDir, string serverName, C150DgmSocket *sock)
 {

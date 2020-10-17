@@ -1,5 +1,5 @@
 #include "safepackets.h"
-#include "sha1.cpp"
+#include "sha1.h"
 #include "iomanip"
 #include <openssl/sha.h>
 #include <sys/types.h>
@@ -35,7 +35,6 @@ string SafePackets::getSafePacket(char *buffer, int hashFreq)
 {
     size_t len;
     unsigned char obuf[20];
-
     for (int i = 0; i < hashFreq; i++)
     {
         len = readFile(buffer);
@@ -90,7 +89,7 @@ void SafePackets::fileToPackets(string sourceName)
         cerr << "Error closing input file " << sourceName << " errno=" << strerror(errno) << endl;
         exit(16);
     }
-    freeArray();
+    // freeArray();
 }
 
 string SafePackets::generateHeader()
@@ -124,13 +123,23 @@ long SafePackets::getFileSize(string filePath)
     return rc == 0 ? stat_buf.st_size : -1;
 }
 
+int SafePackets::getNumPkts()
+{
+    return numPkts;
+}
+
+string SafePackets::getPkt(int index)
+{
+    return pktArray.at(index);
+}
+
 int SafePackets::setHashFreq(string filePath)
 {
     // TODO: justify based on nastiness
     long size = getFileSize(filePath);
 
     if (nastiness == 0)
-        return 0;
+        return 1;
     else if (size > 1e6)
         return 25;
     else if (size > 1e4)

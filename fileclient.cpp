@@ -58,7 +58,7 @@
 //
 // --------------------------------------------------------------
 #include "c150nastydgmsocket.h"
-#include "endtoend.cpp"
+#include "endtoend.h"
 #include "safepackets.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -69,7 +69,10 @@
 using namespace std;         // for C++ std library
 using namespace C150NETWORK; // for all the comp150 utilities
 
+const string BEGIN = "BEG";
+const string END = "END";
 // forward declarations
+string createMsg(string msgType, int numPkts, string fileName);
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 //
@@ -103,6 +106,7 @@ int main(int argc, char *argv[])
     (void)readlen;
     int networkNastiness, fileNastiness;
     char *sourceDir;
+    (void)sourceDir;
 
     //
     //  Set up debug message logging
@@ -119,7 +123,6 @@ int main(int argc, char *argv[])
     }
     networkNastiness = atoi(argv[networkNastinessArg]);
     fileNastiness = atoi(argv[fileNastinessArg]);
-    (void)fileNastiness;
     sourceDir = argv[sourceDirArg];
 
     //
@@ -137,10 +140,25 @@ int main(int argc, char *argv[])
         sock->setServerName(argv[serverArg]);
         string serverName = argv[serverArg];
 
-        // Perform end to end check here
-        performEndToEnd(sourceDir, serverName, sock);
-    }
+        // Declare instance of safepackets
+        SafePackets safe(fileNastiness);
+        safe.fileToPackets("SRC/data10");
+        int numPkts = safe.getNumPkts();
+        string msg = createMsg(BEGIN, numPkts, "data10");
 
+        sock->write(msg.c_str(), msg.length());
+        string pkt;
+        for (int i = 0; i < numPkts; i++)
+        {
+            pkt = safe.getPkt(i);
+            sock->write(pkt.c_str(), pkt.length());
+        }
+
+        msg = createMsg(END, numPkts, "data10");
+        sock->write(msg.c_str(), msg.length());
+        // Perform end to end check here
+        // performEndToEnd(sourceDir, serverName, sock);
+    }
     //
     //  Handle networking errors -- for now, just print message and give up!
     //
@@ -155,4 +173,9 @@ int main(int argc, char *argv[])
     }
 
     return 0;
+}
+
+string createMsg(string msgType, int numPkts, string fileName)
+{
+    return msgType + "/" + to_string(numPkts) + "/" + fileName;
 }
