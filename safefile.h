@@ -23,16 +23,18 @@ class SafeFile {
   
   public:
     SafeFile(int nastiness);
+    int nastiness;
     void setNumPackets(int input);
     int getNumPackets();
     void storePacket(packet packet);
     void computeMissing();
+    void removeMissing(int packetID);
     unordered_set<int> getMissing();
+    int setHashFreq();
     void writeFile(string filename);
-    void writePacket(packet packet, string filename);
+    void writePacket(packet packet, string filename, int hashFrequ);
     vector<packet> getPackets();
     string readTest();
-    
 };
 
 #endif

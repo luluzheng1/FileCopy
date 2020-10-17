@@ -11,11 +11,11 @@
 using namespace std;         // for C++ std library
 using namespace C150NETWORK; // for all the comp150 utilities
 
-int CONTENT_SIZE = 508;
-// int CONTENT_SIZE = 12;
+int CONTENT_SIZE = 252;
 
 SafeFile::SafeFile(int nastiness):outputFile(nastiness) {
     numPackets = 0;
+    this->nastiness = nastiness;
 }
 
 void SafeFile::setNumPackets(int numPackets) {
@@ -42,46 +42,72 @@ void SafeFile::computeMissing() {
     return;
 }
 
+void SafeFile::removeMissing(int packetID) {
+    missing.erase(packetID);
+}
+
 unordered_set<int> SafeFile::getMissing() {
     return missing;
 }
 
+int SafeFile::setHashFreq() {
+    if (nastiness == 0) {
+        return 0;
+    } else {
+        long size = numPackets * CONTENT_SIZE;
+        if (size > 1e6) {
+            return 3;
+        } else if (size > 1e6) {
+            return 3;
+        } else if (size > 1e6) {
+            return 3;
+        } else {
+            return 3;
+        }
+    }
+}
+
 void SafeFile::writeFile(string filename) {
     outputFile.fopen(filename.c_str(), "w+");
+    int hashFrequ = setHashFreq();
+
     for (int i = 0; i < numPackets; i++) {
-        writePacket(packets.at(i), filename);
+        writePacket(packets.at(i), filename, hashFrequ);
     }
 
     outputFile.fclose();
 }
 
-void SafeFile::writePacket(packet packet, string filename) {
-    int packetID = packet.first;
-    (void) packetID;
+void SafeFile::writePacket(packet packet, string filename, int hashFrequ) {
     string content = packet.second;
-    int packet_size = content.length();
+    int packetID = packet.first;
     int rewriteAttemps = 0;
-    unordered_map<string, int> contentWritten;
-
+    int packet_size = content.length();
+    (void) packetID;
+    char buffer[packet_size + 1];
+    
     // cout << packetID << endl;
-    // cout << content << endl << endl;;
+    // cout << Content << endl << endl;;
 
+    // If write fails, retry up to 10 times
     while (rewriteAttemps < 10) {
-        // outputFile.fseek((packetID - 1) * CONTENT_SIZE, SEEK_SET);
+        // Hash map to guess what it wrote
+        unordered_map<string, int> contentWritten;
 
         size_t size = outputFile.fwrite(content.c_str(), 1, packet_size);
 
-        char buffer[size + 1];
+        if (hashFrequ == 0) {
+            break;
+        }
 
-        for (int i = 0; i < 5; i++) {
+        // Do repeated read at the location
+        for (int i = 0; i < hashFrequ; i++) {
+            memset(buffer, 0, size + 1);
 
             outputFile.fclose();
             outputFile.fopen(filename.c_str(), "r+");
 
-            // outputFile.fseek((packetID - 1) * CONTENT_SIZE, SEEK_SET);
             outputFile.fseek(-size, SEEK_END);
-            
-            // size_t size = outputFile.fread(buffer, sizeof(char), packet_size);
             outputFile.fread(buffer, sizeof(char), packet_size);
             outputFile.fseek(-size, SEEK_END);
 
@@ -109,15 +135,16 @@ void SafeFile::writePacket(packet packet, string filename) {
         string likelyContent = mostCommon->first;
 
         if (content.compare(likelyContent) == 0) {
-            // cout << "Matched!" << endl;
             break;    
         } else {
             rewriteAttemps++;
-            cout << "Didn't match" << endl;
-            cout << "Most likely wrote: " << likelyContent << endl << endl;
-            cout << "Actual content: " << content << endl;
+            // cout << "Didn't match" << endl;
+            // cout << "Most likely wrote: " << likelyContent << endl << endl;
+            // cout << "Actual content: " << content << endl;
         }
     }
+    
+    // Set the filepointe to the end of file
     outputFile.fseek(0, SEEK_END);
 }
 
