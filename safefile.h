@@ -23,6 +23,8 @@ class SafeFile {
   
   public:
     SafeFile(int nastiness);
+    void setNumPackets(int input);
+    int getNumPackets();
     void storePacket(packet packet);
     void computeMissing();
     unordered_set<int> getMissing();
@@ -30,6 +32,7 @@ class SafeFile {
     void writePacket(packet packet, string filename);
     vector<packet> getPackets();
     string readTest();
+    
 };
 
 #endif

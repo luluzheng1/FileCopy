@@ -10,7 +10,7 @@ using namespace C150NETWORK;
 
 int main(int argc, char *argv[])
 {
-    SafeFile fileoutput(1);
+    SafeFile fileoutput(atoi(argv[1]));
 
     FILE * file;
     size_t readlen = 0;
@@ -18,6 +18,7 @@ int main(int argc, char *argv[])
     int id = 1;
 
     file = fopen("SRC/warandpeace.txt", "rb");
+    fileoutput.setNumPackets(6346);
 
     while (1) {
         buffer[0] = '\0';
@@ -34,22 +35,10 @@ int main(int argc, char *argv[])
 
     fclose(file);
 
-    // pair<int, string> p1 = make_pair(2, "Hello world\n");
-    // pair<int, string> p2 = make_pair(1, "comp105 1111");
-
-    // fileoutput.storePacket(p1);
-    // fileoutput.storePacket(p2);
-
-    // vector<packet> packets = fileoutput.getPackets();
-    // for (packet p: packets) {
-    //     cout << p.first << " " << p.second<< endl;
-    // }
-
-    // fileoutput.readTest();
-
     fileoutput.writeFile("test.txt");
 
     // file = fopen("test.txt", "rb");
+    // cout << "\nReading test.txt:!\n";
     // while (1) {
     //     buffer[0] = '\0';
     //     readlen = fread(buffer, 1, 508, file);
