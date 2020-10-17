@@ -9,7 +9,6 @@ int main(int argc, char *argv[])
 {
     SafePackets safe(5);
     string sourceName = "SRC/warandpeace.txt";
-
     safe.fileToPackets(sourceName);
     return 0;
 }

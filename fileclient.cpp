@@ -59,6 +59,7 @@
 // --------------------------------------------------------------
 #include "c150nastydgmsocket.h"
 #include "endtoend.cpp"
+#include "safepackets.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unordered_map>
@@ -67,8 +68,6 @@
 
 using namespace std;         // for C++ std library
 using namespace C150NETWORK; // for all the comp150 utilities
-
-typedef unordered_map<string, unsigned char *> sha1Map;
 
 // forward declarations
 

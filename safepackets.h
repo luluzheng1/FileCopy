@@ -22,6 +22,7 @@ private:
     long getFileSize(string sourceName);
     string getSafePacket(char *buffer, int hashFreq);
     int setHashFreq(string filePath);
+    void freeArray();
 
 protected:
     sha1Map pktMap;

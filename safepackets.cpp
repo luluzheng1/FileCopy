@@ -88,6 +88,7 @@ void SafePackets::fileToPackets(string sourceName)
         cerr << "Error closing input file " << sourceName << " errno=" << strerror(errno) << endl;
         exit(16);
     }
+    freeArray();
 }
 
 string SafePackets::generateHeader()
@@ -134,6 +135,12 @@ int SafePackets::setHashFreq(string filePath)
         return 7;
     else
         return 5;
+}
+
+void SafePackets::freeArray()
+{
+    pktArray.clear();
+    return;
 }
 
 SafePackets::~SafePackets() {}
