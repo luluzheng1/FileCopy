@@ -13,17 +13,32 @@ using namespace C150NETWORK; // for all the comp150 utilities
 
 int CONTENT_SIZE = 252;
 
-SafeFile::SafeFile(int nastiness) : outputFile(nastiness)
+SafeFile::SafeFile(int n, string d) : outputFile(nastiness)
 {
     numPackets = 0;
-    this->nastiness = nastiness;
+    nastiness = n;
+    dirName = d;
 }
 
 void SafeFile::setFile(int n, string f)
 {
     numPackets = n;
     filename = f;
-    packets.reserve(numPackets);
+    packets.reserve(n);
+}
+
+void SafeFile::clearFile()
+{
+    numPackets = 0;
+    filename = "";
+    if (!packets.empty())
+        packets.clear();
+
+    if (!received.empty())
+        received.clear();
+
+    if (!missing.empty())
+        missing.clear();
 }
 
 int SafeFile::getNumPackets()
@@ -33,21 +48,24 @@ int SafeFile::getNumPackets()
 
 void SafeFile::storePacket(string packet)
 {
-    int packetID = stoi(packet.substr(0, 4));
+    int packetID = stoi(packet.substr(0, 4), 0, 16);
     string content = packet.substr(4);
     pair<int, string> p = make_pair(packetID, content);
 
     packets.insert(packets.begin() + packetID - 1, p);
+    // cout << "Inserting " << packetID << endl;
     received.insert(packetID);
 }
 
 void SafeFile::computeMissing()
 {
+    // cout << "Has " << received.size() << " packets" << endl;
     for (int i = 1; i < numPackets + 1; i++)
     {
         if (!received.count(i))
         {
             missing.insert(i);
+            // cout << "Missing" << i << endl;
         }
     }
 
@@ -64,42 +82,43 @@ unordered_set<int> SafeFile::getMissing()
     return missing;
 }
 
+bool SafeFile::isMissing()
+{
+    return !missing.empty();
+}
+
 int SafeFile::setHashFreq()
 {
     if (nastiness == 0)
-    {
         return 0;
-    }
     else
     {
         long size = numPackets * CONTENT_SIZE;
         if (size > 1e6)
-        {
             return 3;
-        }
         else if (size > 1e6)
-        {
             return 3;
-        }
         else if (size > 1e6)
-        {
             return 3;
-        }
         else
-        {
             return 3;
-        }
     }
 }
 
 void SafeFile::writeFile()
 {
-    outputFile.fopen(filename.c_str(), "w+");
-    int hashFrequ = setHashFreq();
+    string fn = dirName + "/" + filename + ".TMP";
+
+    outputFile.fopen(fn.c_str(), "w+");
+
+    cout << "Wrie path: " << fn << endl;
+    int hashFreq = setHashFreq();
 
     for (int i = 0; i < numPackets; i++)
     {
-        writePacket(packets.at(i), hashFrequ);
+        // cout << "Before writing packet" << endl;
+        writePacket(packets.at(i), hashFreq);
+        // cout << "After writing packet" << endl;
     }
 
     outputFile.fclose();
@@ -114,8 +133,11 @@ void SafeFile::writePacket(packet packet, int hashFrequ)
     (void)packetID;
     char buffer[packet_size + 1];
 
-    // cout << packetID << endl;
-    // cout << Content << endl << endl;;
+    string fn = dirName + "/" + filename + ".TMP";
+
+    // cout << "Curr packet " << packetID << endl;
+    // cout << "Curr packet content:" << content << endl
+    //      << endl;
 
     // If write fails, retry up to 10 times
     while (rewriteAttemps < 10)
@@ -123,7 +145,11 @@ void SafeFile::writePacket(packet packet, int hashFrequ)
         // Hash map to guess what it wrote
         unordered_map<string, int> contentWritten;
 
+        // cout << "Writing packet" << endl;
+
         size_t size = outputFile.fwrite(content.c_str(), 1, packet_size);
+
+        // cout << "Finished writing packet" << endl;
 
         if (hashFrequ == 0)
         {
@@ -136,7 +162,8 @@ void SafeFile::writePacket(packet packet, int hashFrequ)
             memset(buffer, 0, size + 1);
 
             outputFile.fclose();
-            outputFile.fopen(filename.c_str(), "r+");
+
+            outputFile.fopen(fn.c_str(), "r+");
 
             outputFile.fseek(-size, SEEK_END);
             outputFile.fread(buffer, sizeof(char), packet_size);
@@ -145,8 +172,8 @@ void SafeFile::writePacket(packet packet, int hashFrequ)
             buffer[size] = '\0';
             string incoming(buffer);
 
-            // cout << i + 1 << "th read" << endl;
-            // cout << incoming << endl << endl;
+            // cout << "server: " << i + 1 << "th read" << endl;
+            // cout << "server: read" << incoming << endl;
 
             if (contentWritten.find(incoming) == contentWritten.end())
             {
@@ -168,6 +195,7 @@ void SafeFile::writePacket(packet packet, int hashFrequ)
 
         if (content.compare(likelyContent) == 0)
         {
+            // cout << "server: Wrote correct file" << endl;
             break;
         }
         else
@@ -204,3 +232,5 @@ string SafeFile::readTest()
 
     return incoming;
 }
+
+SafeFile::~SafeFile() {}

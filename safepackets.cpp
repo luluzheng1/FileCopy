@@ -2,8 +2,6 @@
 #include "sha1.h"
 #include "iomanip"
 #include <openssl/sha.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <unistd.h>
 
 size_t BODYSIZE = 252;
@@ -89,7 +87,6 @@ void SafePackets::fileToPackets(string sourceName)
         cerr << "Error closing input file " << sourceName << " errno=" << strerror(errno) << endl;
         exit(16);
     }
-    // freeArray();
 }
 
 string SafePackets::generateHeader()
@@ -150,9 +147,10 @@ int SafePackets::setHashFreq(string filePath)
         return 5;
 }
 
-void SafePackets::freeArray()
+void SafePackets::clear()
 {
     pktArray.clear();
+    numPkts = 0;
     return;
 }
 

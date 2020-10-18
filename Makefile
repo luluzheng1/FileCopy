@@ -54,9 +54,9 @@ all: fileclient fileserver
 
 #
 # Build the sha1test
-#
-# sha1test: sha1test.cpp
-# 	$(CPP) -o sha1test sha1test.cpp -lssl -lcrypto
+
+sha1test: sha1test.cpp
+	$(CPP) -o sha1test sha1test.cpp -lssl -lcrypto
 
 #
 # Build the makedatafile 
@@ -67,20 +67,20 @@ all: fileclient fileserver
 #
 # Build the fileclient
 #
-fileclient: fileclient.o safepackets.o endtoend.o log.o sha1.o $(C150AR) $(INCLUDES)
-	$(CPP) -o fileclient safepackets.o endtoend.o log.o sha1.o fileclient.o -lssl -lcrypto $(C150AR)
+fileclient: fileclient.o safepackets.o endtoend.o sha1.o log.o $(C150AR) $(INCLUDES)
+	$(CPP) -o fileclient safepackets.o endtoend.o sha1.o log.o fileclient.o -lssl -lcrypto $(C150AR)
 
 #
 # Build the fileserver
 #
-fileserver: fileserver.o safefile.o log.o sha1.o $(C150AR) $(INCLUDES)
-	$(CPP) -o fileserver safefile.o log.o sha1.o fileserver.o -lssl -lcrypto $(C150AR)
+fileserver: fileserver.o safefile.o endtoend.o log.o sha1.o $(C150AR) $(INCLUDES)
+	$(CPP) -o fileserver safefile.o endtoend.o log.o sha1.o fileserver.o -lssl -lcrypto $(C150AR)
 
 #
 # Build the fileservertest
 #
-safefiletest: safefiletest.o safefile.o $(C150AR) $(INCLUDES)
-	$(CPP) -o safefiletest safefiletest.o safefile.o -lssl -lcrypto $(C150AR)
+# safefiletest: safefiletest.o safefile.o $(C150AR) $(INCLUDES)
+# 	$(CPP) -o safefiletest safefiletest.o safefile.o -lssl -lcrypto $(C150AR)
 
 
 # safepacketstest: safepacketstest.o safepackets.o $(C150AR) $(INCLUDES)
@@ -96,4 +96,4 @@ safefiletest: safefiletest.o safefile.o $(C150AR) $(INCLUDES)
 # for forcing complete rebuild#
 
 clean:
-	 rm -f fileclient fileserver *.o
+	 rm -f fileclient fileserver *.o *.txt

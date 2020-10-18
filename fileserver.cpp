@@ -1,62 +1,8 @@
-// --------------------------------------------------------------
-//
-//                        pingserver.cpp
-//
-//        Author: Noah Mendelsohn
-//
-//
-//        This is a simple server, designed to illustrate use of:
-//
-//            * The C150DgmSocket class, which provides
-//              a convenient wrapper for sending and receiving
-//              UDP packets in a client/server model
-//
-//            * The C150NastyDgmSocket class, which is a variant
-//              of the socket class described above. The nasty version
-//              takes an integer on its constructor, selecting a degree
-//              of nastiness. Any nastiness > 0 tells the system
-//              to occasionally drop, delay, reorder, duplicate or
-//              damage incoming packets. Higher nastiness levels tend
-//              to be more aggressive about causing trouble
-//
-//            * The c150debug interface, which provides a framework for
-//              generating a timestamped log of debugging messages.
-//              Note that the socket classes described above will
-//              write to these same logs, providing information
-//              about things like when UDP packets are sent and received.
-//              See comments section below for more information on
-//              these logging classes and what they can do.
-//
-//
-//        COMMAND LINE
-//
-//              pingserver <nastiness_number>
-//
-//
-//        OPERATION
-//
-//              pingserver will loop receiving UDP packets from
-//              any client. The data in each packet should be a null-
-//              terminated string. If it is then the server
-//              responds with a text message of its own.
-//
-//              Note that the C150DgmSocket class will select a UDP
-//              port automatically based on the users login, so this
-//              will (typically) work only on the test machines at Tufts
-//              and for COMP 150-IDS who are registered. See documention
-//              for getUserPort.
-//
-//
-//       Copyright: 2012 Noah Mendelsohn
-//
-// --------------------------------------------------------------
-
 #include "c150nastydgmsocket.h"
 #include "c150debug.h"
 #include "c150grading.h"
 #include "safefile.h"
-#include "sha1.h"
-#include "log.h"
+#include "endtoend.h"
 #include <fstream>
 #include <cstdlib>
 #include <string>
@@ -67,36 +13,18 @@
 using namespace C150NETWORK; // for all the comp150 utilities
 
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
-void interpretMessage(string incomingMessage, int *numPackets, string *filename);
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-//
-//                           main program
-//
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+void interpretEnd(string incomingMessage, int *numPackets, string *filename);
+void interpretBegin(string incomingMessage, int *numPackets, string *filename, string *sha1);
 
 int main(int argc, char *argv[])
 {
     GRADEME(argc, argv);
 
-    //
-    // Variable declarations
-    //
     ssize_t readlen;           // amount of data read from socket
-    char incomingMessage[512]; // received message data
-    // char outgoingMessage[512];
-    string filename;
-    string header;
-    string status;
-    int numPackets;
+    char incomingMessage[257]; // received message data
+    string filename, header, status, SHA1Hash, targetDir;
+    int numPackets, networkNastiness, fileNastiness;
 
-    int networkNastiness; // how aggressively do we drop packets, etc?
-    int fileNastiness;
-    string targetDir;
-
-    // unsigned char obuf[20];
-    //
-    // Check command line and parse arguments
-    //
     if (argc != 4)
     {
         fprintf(stderr, "Correct syntxt is: %s <networknastiness> <filenastiness> <targetdir>\n", argv[0]);
@@ -110,54 +38,23 @@ int main(int argc, char *argv[])
     }
     networkNastiness = atoi(argv[1]); // convert command line string to integer
     fileNastiness = atoi(argv[2]);
-    (void)fileNastiness;
     targetDir = argv[3];
-    SafeFile safe(fileNastiness);
+    SafeFile safe(fileNastiness, targetDir);
 
-    //
-    //  Set up debug message logging
-    //
     setUpDebugLogging("serverdebug.txt", argc, argv);
 
-    //
-    // We set a debug output indent in the server only, not the client.
-    // That way, if we run both programs and merge the logs this way:
-    //
-    //    cat pingserverdebug.txt pingserverclient.txt | sort
-    //
-    // it will be easy to tell the server and client entries apart.
-    //
-    // Note that the above trick works because at the start of each
-    // log entry is a timestamp that sort will indeed arrange in
-    // timestamp order, thus merging the logs by time across
-    // server and client.
-    //
-    c150debug->setIndent("    "); // if we merge client and server
-    // logs, server stuff will be indented
+    c150debug->setIndent("    ");
 
-    //
-    // Create socket, loop receiving and responding
-    //
     try
     {
-        //
-        // Create the socket
-        //
         c150debug->printf(C150APPLICATION, "Creating C150NastyDgmSocket(nastiness=%d)",
                           networkNastiness);
         C150DgmSocket *sock = new C150NastyDgmSocket(networkNastiness);
-        c150debug->printf(C150APPLICATION, "Ready to accept messages");
 
-        //
         // infinite loop processing messages
-        //
         while (1)
         {
-
-            //
             // Read a packet
-            // -1 in size below is to leave room for null
-            //
             readlen = sock->read(incomingMessage, sizeof(incomingMessage) - 1);
             if (readlen == 0)
             {
@@ -165,13 +62,9 @@ int main(int argc, char *argv[])
                 continue;
             }
 
-            //
             // Clean up the message in case it contained junk
-            //
-            incomingMessage[readlen] = '\0';  // make sure null terminated
-            string incoming(incomingMessage); // Convert to C++ string ...it's slightly
-                                              // easier to work with, and cleanString
-                                              // expects it
+            incomingMessage[readlen] = '\0'; // make sure null terminated
+            string incoming(incomingMessage);
 
             c150debug->printf(C150APPLICATION, "Successfully read %d bytes. Message=\"%s\"", readlen, incoming.c_str());
 
@@ -180,69 +73,36 @@ int main(int argc, char *argv[])
 
             if (header.compare("BEG/") == 0)
             {
-                interpretMessage(incoming, &numPackets, &filename);
-
-                cout << "Number of packets: " << numPackets << endl;
-                cout << "Filename: " << filename << endl;
+                cout << "server: received BEGIN" << endl;
+                interpretBegin(incoming, &numPackets, &filename, &SHA1Hash);
 
                 safe.setFile(numPackets, filename);
                 safe.setHashFreq();
             }
             else if (header.compare("END/") == 0)
             {
+                cout << "server: received END" << endl;
                 safe.computeMissing();
                 unordered_set<int> missingIDs = safe.getMissing();
+                cout << "finished get missing packets" << endl;
+                interpretEnd(incoming, &numPackets, &filename);
 
-                if (missingIDs.empty())
+                cout << "Missing " << (safe.getMissing()).size() << " packets!" << endl;
+
+                // Performs end-to-end check once server receives last packet
+                if (!safe.isMissing())
                 {
+                    cout << "server: initiating end to end check" << endl;
                     safe.writeFile();
-
-                    // Request end-to-end check once server receives last file
-                    // ETE/
-                    continue;
+                    cout << "finished writing file" << endl;
+                    performEndToEnd(targetDir, sock, filename, SHA1Hash);
+                    safe.clearFile();
                 }
             }
             else
             {
                 safe.storePacket(incoming);
             }
-
-            // if (messageType.compare("filename") == 0)
-            // {
-            //     // Filename sent, return back SHA1hash of the specified file
-            //     encodeSHA1(targetDir, filename, obuf);
-            //     c150debug->printf(C150APPLICATION, "%s: Sending SHA1 for file: \"%s\"", filename);
-            //     string response = filename + ":" + SHA1toHex(obuf) + "\0";
-
-            //     // cout << "Server computed: ";
-            //     // cout << SHA1toHex(obuf) << endl;
-            //     // cout << "Sending back: " << response << endl;
-
-            //     sock->write(response.c_str(), strlen(response.c_str()) + 1);
-            // }
-            // else
-            // {
-            //     // Received status, return back acknowledgement
-            //     string expectedStatus = "check succeeded";
-            //     incoming.erase(0, pos + 1);
-            //     pos = incoming.find(":");
-            //     status = incoming.substr(0, pos);
-
-            //     if (strcmp(status.c_str(), expectedStatus.c_str()) == 0)
-            //         toLogServer(filename, "succeeded");
-            //     else
-            //         toLogServer(filename, "failed");
-
-            //     string response = filename + ":" + status;
-
-            //     // cout << "From Client: " << status << endl;
-            //     // cout << "Server expects: " << expectedStatus << endl;
-            //     // cout << "Sending back: " << response << endl
-            //     //  << endl;
-            //     ;
-
-            //     sock->write(response.c_str(), strlen(response.c_str()) + 1);
-            // }
         }
     }
 
@@ -259,11 +119,23 @@ int main(int argc, char *argv[])
     return 4;
 }
 
-void interpretMessage(string incomingMessage, int *numPackets, string *filename)
+void interpretEnd(string incomingMessage, int *numPackets, string *filename)
 {
     incomingMessage.erase(0, 4);
     int pos = incomingMessage.find("/");
     *numPackets = stoi(incomingMessage.substr(0, pos + 1));
     incomingMessage.erase(0, pos + 1);
     *filename = incomingMessage;
+}
+
+void interpretBegin(string incomingMessage, int *numPackets, string *filename, string *sha1)
+{
+    incomingMessage.erase(0, 4);
+    int pos = incomingMessage.find("/");
+    *numPackets = stoi(incomingMessage.substr(0, pos + 1));
+    incomingMessage.erase(0, pos + 1);
+    pos = incomingMessage.find("/");
+    *filename = incomingMessage.substr(0, pos);
+    incomingMessage.erase(0, pos + 1);
+    *sha1 = incomingMessage;
 }

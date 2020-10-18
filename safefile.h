@@ -19,14 +19,16 @@ private:
   unordered_set<int> received;
   unordered_set<int> missing;
   int numPackets;
+  string dirName;
   string filename;
   NASTYFILE outputFile;
   string likelyContent();
 
 public:
-  SafeFile(int nastiness);
+  SafeFile(int n, string d);
   int nastiness;
   void setFile(int numPackets, string filename);
+  void clearFile();
   void resetFile();
   int getNumPackets();
   void storePacket(string packet);
@@ -35,9 +37,11 @@ public:
   unordered_set<int> getMissing();
   int setHashFreq();
   void writeFile();
+  bool isMissing();
   void writePacket(packet packet, int hashFrequ);
   vector<packet> getPackets();
   string readTest();
+  ~SafeFile();
 };
 
 #endif

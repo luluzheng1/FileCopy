@@ -6,6 +6,8 @@
 #include <unordered_map>
 #include <string>
 #include <vector>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 using namespace std;
 using namespace C150NETWORK;
@@ -22,7 +24,6 @@ private:
     long getFileSize(string sourceName);
     string getSafePacket(char *buffer, int hashFreq);
     int setHashFreq(string filePath);
-    void freeArray();
 
 protected:
     sha1Map pktMap;
@@ -38,6 +39,7 @@ public:
     int getNumPkts();
     string getPkt(int index);
     void fileToPackets(string sourcename);
+    void clear();
 
     ~SafePackets();
 };

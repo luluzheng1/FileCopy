@@ -1,99 +1,28 @@
-// --------------------------------------------------------------
-//
-//                        pingclient.cpp
-//
-//        Author: Noah Mendelsohn
-//
-//
-//        This is a simple client, designed to illustrate use of:
-//
-//            * The C150DgmSocket class, which provides
-//              a convenient wrapper for sending and receiving
-//              UDP packets in a client/server model
-//
-//            * The c150debug interface, which provides a framework for
-//              generating a timestamped log of debugging messages.
-//              Note that the socket classes described above will
-//              write to these same logs, providing information
-//              about things like when UDP packets are sent and received.
-//              See comments section below for more information on
-//              these logging classes and what they can do.
-//
-//
-//        COMMAND LINE
-//
-//              pingclient <servername> <msgtxt>
-//
-//
-//        OPERATION
-//
-//              pingclient will send a single UDP packet
-//              to the named server, and will wait (forever)
-//              for a single UDP packet response. The contents
-//              of the packet sent will be the msgtxt, including
-//              a terminating null. The response message
-//              is checked to ensure that it's null terminated.
-//              For safety, this application will use a routine
-//              to clean up any garbage characters the server
-//              sent us, (so a malicious server can't crash us), and
-//              then print the result.
-//
-//              Note that the C150DgmSocket class will select a UDP
-//              port automatically based on the user's login, so this
-//              will (typically) work only on the test machines at Tufts
-//              and for COMP 150-IDS who are registered. See documention
-//              for the comp150ids getUserPort routine if you are
-//              curious, but you shouldn't have to worry about it.
-//              The framework automatically runs on a separate port
-//              for each user, as long as you are registerd in the
-//              the student port mapping table (ask Noah or the TAs if
-//              the program dies because you don't have a port).
-//
-//        LIMITATIONS
-//
-//              This version does not timeout or retry when packets are lost.
-//
-//
-//       Copyright: 2012 Noah Mendelsohn
-//
-// --------------------------------------------------------------
 #include "c150nastydgmsocket.h"
 #include "endtoend.h"
 #include "safepackets.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unordered_map>
-#include <sys/types.h>
-#include <sys/stat.h>
+#include <chrono>
+#include <thread>
+#include <cstdlib>
+#include <dirent.h>
 
 using namespace std;         // for C++ std library
 using namespace C150NETWORK; // for all the comp150 utilities
 
 const string BEGIN = "BEG";
 const string END = "END";
-// forward declarations
-string createMsg(string msgType, int numPkts, string fileName);
 
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-//
-//                    Command line arguments
-//
-// The following are used as subscripts to argv, the command line arguments
-// If we want to change the command line syntax, doing this
-// symbolically makes it a bit easier.
-//
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+unsigned char obuf[20];
+// forward declarations
+string createMsg(string msgType, int numPkts, string fileName, char *sourceDir);
 
 const int serverArg = 1;           // server name is 1st arg
 const int networkNastinessArg = 2; // network nastiness is 2nd arg
 const int fileNastinessArg = 3;    // file nastiness is 3rd arg
 const int sourceDirArg = 4;        // source directory is 4th arg
-
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-//
-//                           main program
-//
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 int main(int argc, char *argv[])
 {
@@ -103,19 +32,18 @@ int main(int argc, char *argv[])
     // Variable declarations
     //
     ssize_t readlen; // amount of data read from socket
-    (void)readlen;
     int networkNastiness, fileNastiness;
     char *sourceDir;
-    (void)sourceDir;
+    char incomingStatus[4];
+    int attempts = 1;
+    DIR *src;
+    struct dirent *sourceFile;
+    string filename;
 
-    //
     //  Set up debug message logging
-    //
     setUpDebugLogging("clientdebug.txt", argc, argv);
 
-    //
     // Make sure command line looks right
-    //
     if (argc != 5)
     {
         fprintf(stderr, "Correct syntxt is: %s <servername> <networknastiness> <filenastiness> <srcdir>\n", argv[0]);
@@ -125,10 +53,14 @@ int main(int argc, char *argv[])
     fileNastiness = atoi(argv[fileNastinessArg]);
     sourceDir = argv[sourceDirArg];
 
-    //
-    //
-    //        Send / receive / print
-    //
+    checkDirectory(sourceDir);
+    src = opendir(sourceDir);
+    if (src == NULL)
+    {
+        fprintf(stderr, "Error opening source directory %s\n", sourceDir);
+        exit(8);
+    }
+
     try
     {
         // Create the socket
@@ -140,28 +72,70 @@ int main(int argc, char *argv[])
         sock->setServerName(argv[serverArg]);
         string serverName = argv[serverArg];
 
+        attempts = 1;
+
         // Declare instance of safepackets
         SafePackets safe(fileNastiness);
-        safe.fileToPackets("SRC/data10");
-        int numPkts = safe.getNumPkts();
-        string msg = createMsg(BEGIN, numPkts, "data10");
 
-        sock->write(msg.c_str(), msg.length());
-        string pkt;
-        for (int i = 0; i < numPkts; i++)
+        while ((sourceFile = readdir(src)) != NULL)
         {
-            pkt = safe.getPkt(i);
-            sock->write(pkt.c_str(), pkt.length());
+            if ((strcmp(sourceFile->d_name, ".") == 0) ||
+                (strcmp(sourceFile->d_name, "..") == 0))
+                continue; // never copy . or ..
+
+            filename = sourceFile->d_name;
+
+            safe.fileToPackets("SRC/" + filename); //TODO: not hardcode
+            int numPkts = safe.getNumPkts();
+
+            string msg = createMsg(BEGIN, numPkts, filename, sourceDir);
+            cout << "client: BEGIN transmission" << endl;
+            sock->write(msg.c_str(), msg.length());
+            string pkt;
+            cout << "client: WRITING packets" << endl;
+            for (int i = 0; i < numPkts; i++)
+            {
+                pkt = safe.getPkt(i);
+                sock->write(pkt.c_str(), pkt.length());
+                if (i % 100 == 0)
+                    this_thread::sleep_for(chrono::milliseconds(3));
+            }
+
+            msg = createMsg(END, numPkts, filename, sourceDir);
+            sock->write(msg.c_str(), msg.length());
+            cout << "client: END transmission" << endl;
+
+            // Check for end to end status from server
+            while (1)
+            {
+                readlen = sock->read(incomingStatus, 4);
+                if (readlen != 0 and sock->timedout() == 0)
+                {
+                    cout << "client: received end-to-end status: " << incomingStatus << endl;
+
+                    string ack = "received";
+                    sock->write(ack.c_str(), ack.length());
+                    if (strcmp(incomingStatus, "succ") == 0)
+                    {
+                        cout << "client: end-to-end success" << endl;
+                        toLogClient(filename, "succeeded", attempts);
+                    }
+                    else if (strcmp(incomingStatus, "fail") == 0)
+                    {
+                        cout << "client: end-to-end fail" << endl;
+                        toLogClient(filename, "failed", attempts);
+                    }
+
+                    break;
+                }
+            }
+            // Clear file information
+            safe.clear();
         }
 
-        msg = createMsg(END, numPkts, "data10");
-        sock->write(msg.c_str(), msg.length());
-        // Perform end to end check here
-        // performEndToEnd(sourceDir, serverName, sock);
+        closedir(src);
     }
-    //
     //  Handle networking errors -- for now, just print message and give up!
-    //
     catch (C150NetworkException &e)
     {
         // Write to debug log
@@ -175,7 +149,17 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-string createMsg(string msgType, int numPkts, string fileName)
+string createMsg(string msgType, int numPkts, string fileName, char *sourceDir)
 {
-    return msgType + "/" + to_string(numPkts) + "/" + fileName;
+    if (msgType == BEGIN)
+    {
+        encodeSHA1(sourceDir, fileName, obuf);
+        string sha1 = SHA1toHex(obuf);
+        return msgType + "/" + to_string(numPkts) + "/" + fileName + "/" + sha1;
+    }
+    else if (msgType == END)
+    {
+        return msgType + "/" + to_string(numPkts) + "/" + fileName;
+    }
+    return "-1";
 }
