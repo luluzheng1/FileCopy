@@ -18,6 +18,8 @@ const string END = "END";
 unsigned char obuf[20];
 // forward declarations
 string createMsg(string msgType, int numPkts, string fileName, char *sourceDir);
+void interpretReq(string incomingReq, int *packetID, string *filename);
+void interpretEnd(string incomingReq, string *filename);
 
 const int serverArg = 1;           // server name is 1st arg
 const int networkNastinessArg = 2; // network nastiness is 2nd arg
@@ -32,13 +34,14 @@ int main(int argc, char *argv[])
     // Variable declarations
     //
     ssize_t readlen; // amount of data read from socket
-    int networkNastiness, fileNastiness;
+    int networkNastiness, fileNastiness, packetID;
     char *sourceDir;
     char incomingStatus[4];
+    char incomingReq[300];
     int attempts = 1;
     DIR *src;
     struct dirent *sourceFile;
-    string filename;
+    string filename, serverFilename, status;
 
     //  Set up debug message logging
     setUpDebugLogging("clientdebug.txt", argc, argv);
@@ -91,20 +94,62 @@ int main(int argc, char *argv[])
             string msg = createMsg(BEGIN, numPkts, filename, sourceDir);
             // cout << "client: BEGIN transmission" << endl;
             sock->write(msg.c_str(), msg.length());
+            sock->write(msg.c_str(), msg.length());
+            sock->write(msg.c_str(), msg.length());
+            sock->write(msg.c_str(), msg.length());
+
+            cout << "sending " << numPkts << " packets" << endl;
             string pkt;
             // cout << "client: WRITING packets" << endl;
             for (int i = 0; i < numPkts; i++)
             {
                 pkt = safe.getPkt(i);
                 sock->write(pkt.c_str(), pkt.length());
+                sock->write(pkt.c_str(), pkt.length());
                 if (i % 100 == 0)
-                    this_thread::sleep_for(chrono::milliseconds(3));
+                    this_thread::sleep_for(chrono::milliseconds(5));
             }
 
             msg = createMsg(END, numPkts, filename, sourceDir);
             sock->write(msg.c_str(), msg.length());
+            sock->write(msg.c_str(), msg.length());
+            sock->write(msg.c_str(), msg.length());
+            sock->write(msg.c_str(), msg.length());
             // cout << "client: END transmission" << endl;
+            while (1)
+            {
+                readlen = sock->read(incomingReq, 300);
+                incomingReq[readlen] = '\0';
+                if (readlen != 0 and sock->timedout() == 0)
+                {
+                    string incoming(incomingReq);
+                    status = incoming.substr(0, 4);
 
+                    if (status.compare("REQ/") == 0)
+                    {
+                        cout << incoming << endl;
+                        interpretReq(incoming, &packetID, &serverFilename);
+                        pkt = safe.getPkt(packetID);
+                        sock->write(pkt.c_str(), pkt.length());
+                    }
+                    else if (status.compare("DONE") == 0)
+                    {
+                        msg = createMsg(END, numPkts, filename, sourceDir);
+                        sock->write(msg.c_str(), msg.length());
+                        sock->write(msg.c_str(), msg.length());
+                        sock->write(msg.c_str(), msg.length());
+                    }
+                    else if (status.compare("ALL/") == 0)
+                    {
+                        interpretEnd(incoming, &serverFilename);
+                        if (filename.compare(serverFilename) == 0)
+                        {
+                            cout << "Moving to next file!" << endl;
+                            break;
+                        }
+                    }
+                }
+            }
             // Check for end to end status from server
             while (1)
             {
@@ -113,8 +158,6 @@ int main(int argc, char *argv[])
                 {
                     // cout << "client: received end-to-end status: " << incomingStatus << endl;
 
-                    string ack = "received";
-                    sock->write(ack.c_str(), ack.length());
                     if (strcmp(incomingStatus, "succ") == 0)
                     {
                         // cout << "client: end-to-end success" << endl;
@@ -162,4 +205,19 @@ string createMsg(string msgType, int numPkts, string fileName, char *sourceDir)
         return msgType + "/" + to_string(numPkts) + "/" + fileName;
     }
     return "-1";
+}
+
+void interpretReq(string incomingReq, int *packetID, string *filename)
+{
+    incomingReq.erase(0, 4);
+    int pos = incomingReq.find("/");
+    *filename = incomingReq.substr(0, pos + 1);
+    incomingReq.erase(0, pos + 1);
+    *packetID = stoi(incomingReq);
+}
+
+void interpretEnd(string incomingReq, string *filename)
+{
+    incomingReq.erase(0, 4);
+    *filename = incomingReq;
 }

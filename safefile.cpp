@@ -33,7 +33,6 @@ void SafeFile::clearFile()
     numPackets = 0;
     filename = "";
     packets.clear();
-    packets.resize(0);
 
     received.clear();
 
@@ -49,18 +48,19 @@ void SafeFile::storePacket(string packet)
 {
     int packetID = stoi(packet.substr(0, 4), 0, 16);
     string content = packet.substr(4);
-    pair<int, string> p = make_pair(packetID, content);
 
-    cout << "Inserting packet ID " << packetID << " to a vector of capacity " << packets.capacity() << endl;
+    cout << "Inserting packet ID " << packetID << " to a vector of capacity " << packets.size() + 1 << endl;
 
-    packets.insert(packets.begin() + packetID - 1, p);
+    packets[packetID] = content;
     received.insert(packetID);
 }
 
 void SafeFile::computeMissing()
 {
     // cout << "Has " << received.size() << " packets" << endl;
-    for (int i = 1; i < numPackets + 1; i++)
+    missing.clear();
+
+    for (int i = 0; i < numPackets; i++)
     {
         if (!received.count(i))
         {
@@ -100,11 +100,11 @@ int SafeFile::setHashFreq()
         if (size > 1e6)
             return 3;
         else if (size > 1e6)
-            return 3;
+            return 4;
         else if (size > 1e6)
-            return 3;
+            return 5;
         else
-            return 3;
+            return 6;
     }
 }
 
@@ -112,7 +112,7 @@ void SafeFile::writeFile()
 {
     string fn = dirName + "/" + filename + ".TMP";
 
-    outputFile.fopen(fn.c_str(), "w+");
+    outputFile.fopen(fn.c_str(), "wb+");
 
     // cout << "Wrie path: " << fn << endl;
     int hashFreq = setHashFreq();
@@ -120,18 +120,16 @@ void SafeFile::writeFile()
     // cout << "We should have " << numPackets << " packets" << endl;
     // cout << "Actually we have " << packets.size() << " packets" << endl;
 
-    for (int i = 0; i < numPackets; i++)
+    for (int i = 1; i < numPackets + 1; i++)
     {
-        writePacket(packets.at(i), hashFreq);
+        writePacket(packets[i], i, hashFreq);
     }
 
     outputFile.fclose();
 }
 
-void SafeFile::writePacket(packet packet, int hashFrequ)
+void SafeFile::writePacket(string content, int packetID, int hashFrequ)
 {
-    string content = packet.second;
-    int packetID = packet.first;
     int rewriteAttemps = 0;
     int packet_size = content.length();
     (void)packetID;
@@ -174,7 +172,7 @@ void SafeFile::writePacket(packet packet, int hashFrequ)
                 exit(16);
             }
 
-            fopenretval = outputFile.fopen(fn.c_str(), "r+");
+            fopenretval = outputFile.fopen(fn.c_str(), "rb+");
 
             if (fopenretval == NULL)
             {
@@ -233,7 +231,7 @@ string SafeFile::likelyContent()
     return "";
 }
 
-vector<packet> SafeFile::getPackets()
+unordered_map<int, string> SafeFile::getPackets()
 {
     return packets;
 }

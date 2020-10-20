@@ -8,6 +8,8 @@
 #include <string>
 #include <sstream>
 #include <stdio.h>
+#include <chrono>
+#include <thread>
 #include <openssl/sha.h>
 
 using namespace C150NETWORK; // for all the comp150 utilities
@@ -15,6 +17,11 @@ using namespace C150NETWORK; // for all the comp150 utilities
 void setUpDebugLogging(const char *logname, int argc, char *argv[]);
 void interpretEnd(string incomingMessage, int *numPackets, string *filename);
 void interpretBegin(string incomingMessage, int *numPackets, string *filename, string *sha1);
+string createMsg(string msgType, int numPkts, string fileName);
+
+string REQ = "REQ";
+string DONE = "DONE";
+string ALL = "ALL/";
 
 int main(int argc, char *argv[])
 {
@@ -22,7 +29,7 @@ int main(int argc, char *argv[])
 
     ssize_t readlen;           // amount of data read from socket
     char incomingMessage[257]; // received message data
-    string filename, header, status, SHA1Hash, targetDir;
+    string filename, header, message, SHA1Hash, targetDir;
     int numPackets, networkNastiness, fileNastiness;
 
     if (argc != 4)
@@ -81,17 +88,39 @@ int main(int argc, char *argv[])
             }
             else if (header.compare("END/") == 0)
             {
+                interpretEnd(incoming, &numPackets, &filename);
                 // cout << "server: received END" << endl;
                 safe.computeMissing();
                 unordered_set<int> missingIDs = safe.getMissing();
-                // cout << "finished get missing packets" << endl;
-                interpretEnd(incoming, &numPackets, &filename);
 
+                if (missingIDs.size() > 0)
+                {
+                    for (const auto &id : missingIDs)
+                    {
+                        cout << "Missing " << id << "!" << endl;
+                        message = createMsg(REQ, id, filename);
+                        sock->write(message.c_str(), message.length());
+                    }
+
+                    message = createMsg(DONE, 0, filename);
+                    sock->write(message.c_str(), message.length());
+                    sock->write(message.c_str(), message.length());
+                    sock->write(message.c_str(), message.length());
+                }
+
+                this_thread::sleep_for(chrono::milliseconds(5));
+
+                // cout << "finished get missing packets" << endl;
                 // cout << "Missing " << (safe.getMissing()).size() << " packets!" << endl;
 
+                safe.computeMissing();
                 // Performs end-to-end check once server receives last packet
                 if (!safe.isMissing())
                 {
+                    message = createMsg(ALL, 0, filename);
+                    sock->write(message.c_str(), message.length());
+                    sock->write(message.c_str(), message.length());
+                    sock->write(message.c_str(), message.length());
                     // cout << "server: initiating end to end check" << endl;
                     safe.writeFile();
                     // cout << "finished writing file" << endl;
@@ -101,6 +130,7 @@ int main(int argc, char *argv[])
             }
             else
             {
+                cout << "Header:" << header << endl;
                 safe.storePacket(incoming);
             }
         }
@@ -125,7 +155,8 @@ void interpretEnd(string incomingMessage, int *numPackets, string *filename)
     int pos = incomingMessage.find("/");
     *numPackets = stoi(incomingMessage.substr(0, pos + 1));
     incomingMessage.erase(0, pos + 1);
-    *filename = incomingMessage;
+    pos = incomingMessage.find("/");
+    *filename = incomingMessage.substr(0, pos);
 }
 
 void interpretBegin(string incomingMessage, int *numPackets, string *filename, string *sha1)
@@ -138,4 +169,21 @@ void interpretBegin(string incomingMessage, int *numPackets, string *filename, s
     *filename = incomingMessage.substr(0, pos);
     incomingMessage.erase(0, pos + 1);
     *sha1 = incomingMessage;
+}
+
+string createMsg(string msgType, int numPkts, string fileName)
+{
+    if (msgType == REQ)
+    {
+        return msgType + "/" + fileName + "/" + to_string(numPkts);
+    }
+    else if (msgType == DONE)
+    {
+        return msgType;
+    }
+    else if (msgType == ALL)
+    {
+        return msgType + fileName;
+    }
+    return "-1";
 }

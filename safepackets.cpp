@@ -76,8 +76,9 @@ void SafePackets::fileToPackets(string sourceName)
         pkt = getSafePacket(buffer, hashFreq);
         if (pkt == "-1")
             break;
-        numPkts++;
+
         string header = generateHeader();
+        numPkts++;
         pkt = header + pkt;
         pktArray.push_back(pkt);
     }

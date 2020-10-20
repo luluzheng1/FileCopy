@@ -4,18 +4,17 @@
 #include "c150nastyfile.h"
 #include <utility>
 #include <unordered_set>
+#include <unordered_map>
 #include <queue>
 #include <vector>
 
 using namespace std;
 using namespace C150NETWORK; // for all the comp150 utilities
 
-typedef pair<int, string> packet;
-
 class SafeFile
 {
 private:
-  vector<packet> packets;
+  unordered_map<int, string> packets;
   unordered_set<int> received;
   unordered_set<int> missing;
   int numPackets;
@@ -38,8 +37,8 @@ public:
   int setHashFreq();
   void writeFile();
   bool isMissing();
-  void writePacket(packet packet, int hashFrequ);
-  vector<packet> getPackets();
+  void writePacket(string content, int packetID, int hashFrequ);
+  unordered_map<int, string> getPackets();
   string readTest();
   ~SafeFile();
 };
