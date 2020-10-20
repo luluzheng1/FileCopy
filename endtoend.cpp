@@ -42,15 +42,16 @@ void performEndToEnd(string dir, C150DgmSocket *sock, string filename, string cl
     }
 
     // Write status to client and read ack from client
-    // cout << "server: sending ent-to-end status to client" << endl;
+    cout << "Sending end-to-end status to client" << endl;
     tryFiveTimes(sock, status, (char *)incomingMessage);
+    cout << "End-to-end status sent successfully" << endl;
 
     c150debug->printf(C150APPLICATION, "%s", incomingMessage);
 }
 
 void tryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage)
 {
-    for (int numAttempts = 0; numAttempts < 10; numAttempts++)
+    for (int numAttempts = 0; numAttempts < 20; numAttempts++)
     {
         sock->write(outgoingMessage.c_str(), strlen(outgoingMessage.c_str()) + 1);
         int readlen = sock->read(incomingMessage, 512);

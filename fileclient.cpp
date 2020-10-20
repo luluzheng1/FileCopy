@@ -92,11 +92,14 @@ int main(int argc, char *argv[])
             int numPkts = safe.getNumPkts();
 
             string msg = createMsg(BEGIN, numPkts, filename, sourceDir);
-            // cout << "client: BEGIN transmission" << endl;
-            sock->write(msg.c_str(), msg.length());
-            sock->write(msg.c_str(), msg.length());
-            sock->write(msg.c_str(), msg.length());
-            sock->write(msg.c_str(), msg.length());
+            cout << "BEGIN transmission of " << filename << endl;
+
+            tryFiveTimes(sock,msg,incomingStatus);
+
+            // sock->write(msg.c_str(), msg.length());
+            // sock->write(msg.c_str(), msg.length());
+            // sock->write(msg.c_str(), msg.length());
+            // sock->write(msg.c_str(), msg.length());
 
             cout << "sending " << numPkts << " packets" << endl;
             string pkt;
@@ -105,12 +108,17 @@ int main(int argc, char *argv[])
             {
                 pkt = safe.getPkt(i);
                 sock->write(pkt.c_str(), pkt.length());
-                sock->write(pkt.c_str(), pkt.length());
+                // sock->write(pkt.c_str(), pkt.length());
                 if (i % 100 == 0)
                     this_thread::sleep_for(chrono::milliseconds(5));
             }
 
+            cout << "Finished sending packets for " << filename << endl;
             msg = createMsg(END, numPkts, filename, sourceDir);
+            // tryFiveTimes(sock,msg,incomingStatus);
+
+            sock->write(msg.c_str(), msg.length());
+            sock->write(msg.c_str(), msg.length());
             sock->write(msg.c_str(), msg.length());
             sock->write(msg.c_str(), msg.length());
             sock->write(msg.c_str(), msg.length());
@@ -118,45 +126,63 @@ int main(int argc, char *argv[])
             // cout << "client: END transmission" << endl;
             while (1)
             {
+                // incomingReq[0] = '\0';
                 readlen = sock->read(incomingReq, 300);
+                cout << "Incoming message: " << incomingReq << endl;
                 incomingReq[readlen] = '\0';
                 if (readlen != 0 and sock->timedout() == 0)
                 {
                     string incoming(incomingReq);
                     status = incoming.substr(0, 4);
+                    cout << "From server:" << incoming << endl;
 
                     if (status.compare("REQ/") == 0)
                     {
-                        cout << incoming << endl;
                         interpretReq(incoming, &packetID, &serverFilename);
                         pkt = safe.getPkt(packetID);
                         sock->write(pkt.c_str(), pkt.length());
                     }
                     else if (status.compare("DONE") == 0)
                     {
+                        // cout << "Received Done" << endl;
                         msg = createMsg(END, numPkts, filename, sourceDir);
+                        // tryFiveTimes(sock,msg,incomingStatus);
+
                         sock->write(msg.c_str(), msg.length());
                         sock->write(msg.c_str(), msg.length());
                         sock->write(msg.c_str(), msg.length());
+                        sock->write(msg.c_str(), msg.length());
+                        sock->write(msg.c_str(), msg.length());
+                        // sock->write(msg.c_str(), msg.length());
                     }
                     else if (status.compare("ALL/") == 0)
                     {
                         interpretEnd(incoming, &serverFilename);
                         if (filename.compare(serverFilename) == 0)
                         {
-                            cout << "Moving to next file!" << endl;
+                            cout << "Server has received all packets!" << endl;
                             break;
                         }
                     }
                 }
             }
             // Check for end to end status from server
+            cout << "Checking for end to end status from server" << endl;
             while (1)
             {
+                incomingStatus[0] = '\0';
+                printf("Incoming status: %s\n", incomingStatus);
                 readlen = sock->read(incomingStatus, 4);
-                if (readlen != 0 and sock->timedout() == 0)
-                {
-                    // cout << "client: received end-to-end status: " << incomingStatus << endl;
+                incomingStatus[4] = '\0';
+
+                printf("Received %s\n", incomingStatus);
+                cout << "Readlen: " << readlen << endl;
+                cout << "Timeout: " << sock->timedout() << endl;
+
+                if (strcmp(incomingStatus, "succ") == 0 or strcmp(incomingStatus, "fail") == 0) {
+                    cout << "Received end-to-end status: " << incomingStatus << endl;
+                    string ack = "REC/";
+                    sock->write(ack.c_str(), ack.length());
 
                     if (strcmp(incomingStatus, "succ") == 0)
                     {
@@ -171,6 +197,29 @@ int main(int argc, char *argv[])
 
                     break;
                 }
+
+                // if (readlen != 0 or sock->timedout() == 0)
+                // // if (strlen(incomingReq) > 0)
+                // {
+                //     if (strcmp(incomingStatus, "succ") == 0 or strcmp(incomingStatus, "fail") == 0) {
+                //         cout << "Received end-to-end status: " << incomingStatus << endl;
+                //         string ack = "REC/";
+                //         sock->write(ack.c_str(), ack.length());
+
+                //         if (strcmp(incomingStatus, "succ") == 0)
+                //         {
+                //             // cout << "client: end-to-end success" << endl;
+                //             toLogClient(filename, "succeeded", attempts);
+                //         }
+                //         else if (strcmp(incomingStatus, "fail") == 0)
+                //         {
+                //             // cout << "client: end-to-end fail" << endl;
+                //             toLogClient(filename, "failed", attempts);
+                //         }
+
+                //         break;
+                //     } 
+                // }
             }
             // Clear file information
             safe.clear();

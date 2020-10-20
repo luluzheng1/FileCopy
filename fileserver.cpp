@@ -82,6 +82,11 @@ int main(int argc, char *argv[])
             {
                 // cout << "server: received BEGIN" << endl;
                 interpretBegin(incoming, &numPackets, &filename, &SHA1Hash);
+                message = "BEG/";
+                sock->write(message.c_str(), message.length());
+                sock->write(message.c_str(), message.length());
+
+                cout << "Begin " << filename << endl;
 
                 safe.setFile(numPackets, filename);
                 safe.setHashFreq();
@@ -89,7 +94,14 @@ int main(int argc, char *argv[])
             else if (header.compare("END/") == 0)
             {
                 interpretEnd(incoming, &numPackets, &filename);
-                // cout << "server: received END" << endl;
+                message = "END/";
+                
+                sock->write(message.c_str(), message.length());
+                sock->write(message.c_str(), message.length());
+                sock->write(message.c_str(), message.length());
+                sock->write(message.c_str(), message.length());
+                
+                cout << "End " << filename << endl;
                 safe.computeMissing();
                 unordered_set<int> missingIDs = safe.getMissing();
 
@@ -103,9 +115,11 @@ int main(int argc, char *argv[])
                     }
 
                     message = createMsg(DONE, 0, filename);
-                    sock->write(message.c_str(), message.length());
-                    sock->write(message.c_str(), message.length());
-                    sock->write(message.c_str(), message.length());
+                    tryFiveTimes(sock, message, incomingMessage);
+                    
+                    // sock->write(message.c_str(), message.length());
+                    // sock->write(message.c_str(), message.length());
+                    // sock->write(message.c_str(), message.length());
                 }
 
                 this_thread::sleep_for(chrono::milliseconds(5));
@@ -121,16 +135,24 @@ int main(int argc, char *argv[])
                     sock->write(message.c_str(), message.length());
                     sock->write(message.c_str(), message.length());
                     sock->write(message.c_str(), message.length());
-                    // cout << "server: initiating end to end check" << endl;
+                    sock->write(message.c_str(), message.length());
+                    // tryFiveTimes(sock, message, incomingMessage);
+
+                    cout << "Initiating end to end check of " << filename << endl;
                     safe.writeFile();
-                    // cout << "finished writing file" << endl;
+                    cout << "Finished writing" << filename << endl;
                     performEndToEnd(targetDir, sock, filename, SHA1Hash);
-                    safe.clearFile();
+                    cout << "End to end done!" << endl;
+                    safe.clearFile(); 
                 }
+            }
+            else if (header.compare("REC/") == 0)
+            {
+                continue;
             }
             else
             {
-                cout << "Header:" << header << endl;
+                // cout << "Header:" << header << endl;
                 safe.storePacket(incoming);
             }
         }
