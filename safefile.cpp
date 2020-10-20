@@ -18,6 +18,7 @@ SafeFile::SafeFile(int n, string d) : outputFile(nastiness)
     numPackets = 0;
     nastiness = n;
     dirName = d;
+    filename = "";
 }
 
 void SafeFile::setFile(int n, string f)
@@ -31,14 +32,12 @@ void SafeFile::clearFile()
 {
     numPackets = 0;
     filename = "";
-    if (!packets.empty())
-        packets.clear();
+    packets.clear();
+    packets.resize(0);
 
-    if (!received.empty())
-        received.clear();
+    received.clear();
 
-    if (!missing.empty())
-        missing.clear();
+    missing.clear();
 }
 
 int SafeFile::getNumPackets()
@@ -52,8 +51,9 @@ void SafeFile::storePacket(string packet)
     string content = packet.substr(4);
     pair<int, string> p = make_pair(packetID, content);
 
+    cout << "Inserting packet ID " << packetID << " to a vector of capacity " << packets.capacity() << endl;
+
     packets.insert(packets.begin() + packetID - 1, p);
-    // cout << "Inserting " << packetID << endl;
     received.insert(packetID);
 }
 
@@ -74,7 +74,10 @@ void SafeFile::computeMissing()
 
 void SafeFile::removeMissing(int packetID)
 {
-    missing.erase(packetID);
+    if (missing.count(packetID))
+    {
+        missing.erase(packetID);
+    }
 }
 
 unordered_set<int> SafeFile::getMissing()
@@ -111,14 +114,15 @@ void SafeFile::writeFile()
 
     outputFile.fopen(fn.c_str(), "w+");
 
-    cout << "Wrie path: " << fn << endl;
+    // cout << "Wrie path: " << fn << endl;
     int hashFreq = setHashFreq();
+
+    // cout << "We should have " << numPackets << " packets" << endl;
+    // cout << "Actually we have " << packets.size() << " packets" << endl;
 
     for (int i = 0; i < numPackets; i++)
     {
-        // cout << "Before writing packet" << endl;
         writePacket(packets.at(i), hashFreq);
-        // cout << "After writing packet" << endl;
     }
 
     outputFile.fclose();
@@ -132,6 +136,7 @@ void SafeFile::writePacket(packet packet, int hashFrequ)
     int packet_size = content.length();
     (void)packetID;
     char buffer[packet_size + 1];
+    void *fopenretval;
 
     string fn = dirName + "/" + filename + ".TMP";
 
@@ -159,17 +164,29 @@ void SafeFile::writePacket(packet packet, int hashFrequ)
         // Do repeated read at the location
         for (int i = 0; i < hashFrequ; i++)
         {
-            memset(buffer, 0, size + 1);
+            memset(buffer, 0, packet_size + 1);
 
-            outputFile.fclose();
+            // outputFile.fclose();
 
-            outputFile.fopen(fn.c_str(), "r+");
+            if (outputFile.fclose() != 0)
+            {
+                cerr << "Error closing input file " << filename << " errno=" << strerror(errno) << endl;
+                exit(16);
+            }
+
+            fopenretval = outputFile.fopen(fn.c_str(), "r+");
+
+            if (fopenretval == NULL)
+            {
+                cerr << "Error opening output file " << filename << " errno=" << strerror(errno) << endl;
+                exit(12);
+            }
 
             outputFile.fseek(-size, SEEK_END);
-            outputFile.fread(buffer, sizeof(char), packet_size);
+            outputFile.fread(buffer, sizeof(char), packet_size + 1);
             outputFile.fseek(-size, SEEK_END);
 
-            buffer[size] = '\0';
+            buffer[packet_size] = '\0';
             string incoming(buffer);
 
             // cout << "server: " << i + 1 << "th read" << endl;

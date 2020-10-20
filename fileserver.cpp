@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
 
             if (header.compare("BEG/") == 0)
             {
-                cout << "server: received BEGIN" << endl;
+                // cout << "server: received BEGIN" << endl;
                 interpretBegin(incoming, &numPackets, &filename, &SHA1Hash);
 
                 safe.setFile(numPackets, filename);
@@ -81,20 +81,20 @@ int main(int argc, char *argv[])
             }
             else if (header.compare("END/") == 0)
             {
-                cout << "server: received END" << endl;
+                // cout << "server: received END" << endl;
                 safe.computeMissing();
                 unordered_set<int> missingIDs = safe.getMissing();
-                cout << "finished get missing packets" << endl;
+                // cout << "finished get missing packets" << endl;
                 interpretEnd(incoming, &numPackets, &filename);
 
-                cout << "Missing " << (safe.getMissing()).size() << " packets!" << endl;
+                // cout << "Missing " << (safe.getMissing()).size() << " packets!" << endl;
 
                 // Performs end-to-end check once server receives last packet
                 if (!safe.isMissing())
                 {
-                    cout << "server: initiating end to end check" << endl;
+                    // cout << "server: initiating end to end check" << endl;
                     safe.writeFile();
-                    cout << "finished writing file" << endl;
+                    // cout << "finished writing file" << endl;
                     performEndToEnd(targetDir, sock, filename, SHA1Hash);
                     safe.clearFile();
                 }

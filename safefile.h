@@ -22,11 +22,11 @@ private:
   string dirName;
   string filename;
   NASTYFILE outputFile;
+  int nastiness;
   string likelyContent();
 
 public:
   SafeFile(int n, string d);
-  int nastiness;
   void setFile(int numPackets, string filename);
   void clearFile();
   void resetFile();

@@ -15,18 +15,18 @@ void performEndToEnd(string dir, C150DgmSocket *sock, string filename, string cl
 
     tempFilename = filename + ".TMP";
 
-    cout << "Computing SHA1 of: " << tempFilename << " in " << dir << endl;
+    // cout << "Computing SHA1 of: " << tempFilename << " in " << dir << endl;
 
     encodeSHA1(dir, tempFilename, obuf);
     serverSHA1Hash = SHA1toHex(obuf);
 
-    cout << "Client computed: " << clientSHA1Hash << endl;
-    cout << "Server computed: " << serverSHA1Hash << endl;
+    // cout << "Client computed: " << clientSHA1Hash << endl;
+    // cout << "Server computed: " << serverSHA1Hash << endl;
 
     // Check SHA1hashes sent by client and computed by server
     if (clientSHA1Hash.compare(serverSHA1Hash) == 0)
     {
-        cout << "server: end-to-end success" << endl;
+        // cout << "server: end-to-end success" << endl;
         status = "succ";
         toLogServer(filename, "succeeded");
         string oldName = dir + "/" + tempFilename;
@@ -36,13 +36,13 @@ void performEndToEnd(string dir, C150DgmSocket *sock, string filename, string cl
     }
     else
     {
-        cout << "server: end-to-end fail" << endl;
+        // cout << "server: end-to-end fail" << endl;
         status = "fail";
         toLogServer(filename, "failed");
     }
 
     // Write status to client and read ack from client
-    cout << "server: sending ent-to-end status to client" << endl;
+    // cout << "server: sending ent-to-end status to client" << endl;
     tryFiveTimes(sock, status, (char *)incomingMessage);
 
     c150debug->printf(C150APPLICATION, "%s", incomingMessage);

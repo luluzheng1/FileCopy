@@ -83,8 +83,8 @@ fileserver: fileserver.o safefile.o endtoend.o log.o sha1.o $(C150AR) $(INCLUDES
 # 	$(CPP) -o safefiletest safefiletest.o safefile.o -lssl -lcrypto $(C150AR)
 
 
-# safepacketstest: safepacketstest.o safepackets.o $(C150AR) $(INCLUDES)
-# 	$(CPP) -o safepacketstest safepacketstest.o safepackets.o  -lssl -lcrypto $(C150AR)
+safepacketstest: safepacketstest.o $(C150AR) $(INCLUDES)
+	$(CPP) -o safepacketstest safepacketstest.o  -lssl -lcrypto $(C150AR)
 # To get any .o, compile the corresponding .cpp
 #
 %.o:%.cpp  $(INCLUDES)

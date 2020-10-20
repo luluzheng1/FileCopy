@@ -84,15 +84,15 @@ int main(int argc, char *argv[])
                 continue; // never copy . or ..
 
             filename = sourceFile->d_name;
-
-            safe.fileToPackets("SRC/" + filename); //TODO: not hardcode
+            string sDir(sourceDir);
+            safe.fileToPackets(sDir + "/" + filename); //TODO: not hardcode
             int numPkts = safe.getNumPkts();
 
             string msg = createMsg(BEGIN, numPkts, filename, sourceDir);
-            cout << "client: BEGIN transmission" << endl;
+            // cout << "client: BEGIN transmission" << endl;
             sock->write(msg.c_str(), msg.length());
             string pkt;
-            cout << "client: WRITING packets" << endl;
+            // cout << "client: WRITING packets" << endl;
             for (int i = 0; i < numPkts; i++)
             {
                 pkt = safe.getPkt(i);
@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
 
             msg = createMsg(END, numPkts, filename, sourceDir);
             sock->write(msg.c_str(), msg.length());
-            cout << "client: END transmission" << endl;
+            // cout << "client: END transmission" << endl;
 
             // Check for end to end status from server
             while (1)
@@ -111,18 +111,18 @@ int main(int argc, char *argv[])
                 readlen = sock->read(incomingStatus, 4);
                 if (readlen != 0 and sock->timedout() == 0)
                 {
-                    cout << "client: received end-to-end status: " << incomingStatus << endl;
+                    // cout << "client: received end-to-end status: " << incomingStatus << endl;
 
                     string ack = "received";
                     sock->write(ack.c_str(), ack.length());
                     if (strcmp(incomingStatus, "succ") == 0)
                     {
-                        cout << "client: end-to-end success" << endl;
+                        // cout << "client: end-to-end success" << endl;
                         toLogClient(filename, "succeeded", attempts);
                     }
                     else if (strcmp(incomingStatus, "fail") == 0)
                     {
-                        cout << "client: end-to-end fail" << endl;
+                        // cout << "client: end-to-end fail" << endl;
                         toLogClient(filename, "failed", attempts);
                     }
 
