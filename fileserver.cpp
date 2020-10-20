@@ -80,24 +80,22 @@ int main(int argc, char *argv[])
 
             if (header.compare("BEG/") == 0)
             {
-                // cout << "server: received BEGIN" << endl;
                 interpretBegin(incoming, &numPackets, &filename, &SHA1Hash);
-
+                cout << filename << ": received BEGIN" << endl;
                 safe.setFile(numPackets, filename);
                 safe.setHashFreq();
             }
             else if (header.compare("END/") == 0)
             {
                 interpretEnd(incoming, &numPackets, &filename);
-                // cout << "server: received END" << endl;
+                cout << filename << ": received END" << endl;
                 safe.computeMissing();
                 unordered_set<int> missingIDs = safe.getMissing();
-
+                cout << filename << ": missing " << missingIDs.size() << " packets!" << endl;
                 if (missingIDs.size() > 0)
                 {
                     for (const auto &id : missingIDs)
                     {
-                        cout << "Missing " << id << "!" << endl;
                         message = createMsg(REQ, id, filename);
                         sock->write(message.c_str(), message.length());
                     }
@@ -108,29 +106,24 @@ int main(int argc, char *argv[])
                     sock->write(message.c_str(), message.length());
                 }
 
-                this_thread::sleep_for(chrono::milliseconds(5));
+                // this_thread::sleep_for(chrono::milliseconds(5));
 
-                // cout << "finished get missing packets" << endl;
-                // cout << "Missing " << (safe.getMissing()).size() << " packets!" << endl;
-
-                safe.computeMissing();
                 // Performs end-to-end check once server receives last packet
-                if (!safe.isMissing())
+                else
                 {
+                    safe.writeFile();
                     message = createMsg(ALL, 0, filename);
                     sock->write(message.c_str(), message.length());
                     sock->write(message.c_str(), message.length());
                     sock->write(message.c_str(), message.length());
-                    // cout << "server: initiating end to end check" << endl;
-                    safe.writeFile();
-                    // cout << "finished writing file" << endl;
+
+                    cout << filename << ": END TO END CHECK" << endl;
                     performEndToEnd(targetDir, sock, filename, SHA1Hash);
                     safe.clearFile();
                 }
             }
             else
             {
-                cout << "Header:" << header << endl;
                 safe.storePacket(incoming);
             }
         }
@@ -179,7 +172,7 @@ string createMsg(string msgType, int numPkts, string fileName)
     }
     else if (msgType == DONE)
     {
-        return msgType;
+        return msgType + "/" + fileName;
     }
     else if (msgType == ALL)
     {

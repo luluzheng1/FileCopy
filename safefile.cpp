@@ -49,23 +49,22 @@ void SafeFile::storePacket(string packet)
     int packetID = stoi(packet.substr(0, 4), 0, 16);
     string content = packet.substr(4);
 
-    cout << "Inserting packet ID " << packetID << " to a vector of capacity " << packets.size() + 1 << endl;
+    // cout << "Inserting packet ID " << packetID << " to a vector of capacity " << packets.size() + 1 << endl;
 
     packets[packetID] = content;
     received.insert(packetID);
+    removeMissing(packetID);
 }
 
 void SafeFile::computeMissing()
 {
     // cout << "Has " << received.size() << " packets" << endl;
-    missing.clear();
 
     for (int i = 0; i < numPackets; i++)
     {
         if (!received.count(i))
         {
             missing.insert(i);
-            // cout << "Missing" << i << endl;
         }
     }
 
@@ -120,7 +119,7 @@ void SafeFile::writeFile()
     // cout << "We should have " << numPackets << " packets" << endl;
     // cout << "Actually we have " << packets.size() << " packets" << endl;
 
-    for (int i = 1; i < numPackets + 1; i++)
+    for (int i = 0; i < numPackets; i++)
     {
         writePacket(packets[i], i, hashFreq);
     }
