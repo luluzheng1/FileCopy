@@ -112,16 +112,24 @@ int main(int argc, char *argv[])
                 // Performs end-to-end check once server receives last packet
                 else
                 {
-                    safe.writeFile();
-                    message = createMsg(ALL, 0, filename);
-                    for (int i = 0; i < 6; i++)
+                    if (safe.writeFile())
                     {
-                        sock->write(message.c_str(), message.length());
-                        // this_thread::sleep_for(chrono::milliseconds(1));
+                        cout << "here " << endl;
+                        message = createMsg(ALL, 0, filename);
+                        for (int i = 0; i < 4; i++)
+                        {
+                            sock->write(message.c_str(), message.length());
+                            // this_thread::sleep_for(chrono::milliseconds(1));
+                        }
+                        cout << filename << ": END TO END CHECK" << endl;
+                        performEndToEnd(targetDir, sock, filename, SHA1Hash, &status);
+                        safe.clearFile();
                     }
-                    cout << filename << ": END TO END CHECK" << endl;
-                    performEndToEnd(targetDir, sock, filename, SHA1Hash, &status);
-                    safe.clearFile();
+                    else
+                    {
+                        performEndToEnd(targetDir, sock, filename, SHA1Hash, &status);
+                        continue;
+                    }
                 }
             }
             else

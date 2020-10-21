@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
                         }
                     }
                 }
-                if (count == 100)
+                if (count == 70)
                 {
                     for (int i = 0; i < numPkts; i++)
                     {

@@ -7,11 +7,18 @@
 #include <unordered_map>
 #include <algorithm>
 #include <unistd.h>
+#include <sys/stat.h>
 
 using namespace std;         // for C++ std library
 using namespace C150NETWORK; // for all the comp150 utilities
 
 int CONTENT_SIZE = 252;
+
+inline bool fileExists(string dir, string &name)
+{
+    struct stat buffer;
+    return (stat((dir + "/" + name).c_str(), &buffer) == 0);
+}
 
 SafeFile::SafeFile(int n, string d) : outputFile(nastiness)
 {
@@ -107,9 +114,15 @@ int SafeFile::setHashFreq()
     }
 }
 
-void SafeFile::writeFile()
+bool SafeFile::writeFile()
 {
     string fn = dirName + "/" + filename + ".TMP";
+
+    if (fileExists(dirName, filename))
+    {
+        cout << "already wrote" << endl;
+        return false;
+    }
 
     outputFile.fopen(fn.c_str(), "wb+");
 
@@ -125,6 +138,7 @@ void SafeFile::writeFile()
     }
 
     outputFile.fclose();
+    return true;
 }
 
 void SafeFile::writePacket(string content, int packetID, int hashFrequ)

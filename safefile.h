@@ -35,7 +35,7 @@ public:
   void removeMissing(int packetID);
   unordered_set<int> getMissing();
   int setHashFreq();
-  void writeFile();
+  bool writeFile();
   bool isMissing();
   void writePacket(string content, int packetID, int hashFrequ);
   unordered_map<int, string> getPackets();
