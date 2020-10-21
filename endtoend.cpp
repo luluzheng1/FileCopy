@@ -30,7 +30,6 @@ void performEndToEnd(string dir, C150DgmSocket *sock, string filename, string cl
     // If file no longer exists, don't perform end to end
     if (!fileExists(dir, tempFilename))
     {
-        cout << "file no longer exists" << endl;
         sendManyTimes(sock, *status, (char *)incomingMessage);
         return;
     }
@@ -41,7 +40,6 @@ void performEndToEnd(string dir, C150DgmSocket *sock, string filename, string cl
     // Check SHA1hashes sent by client and computed by server
     if (clientSHA1Hash.compare(serverSHA1Hash) == 0)
     {
-        cout << filename << ": end-to-end success" << endl;
         *status = "succ";
         toLogServer(CHECK, filename, "succeeded");
         string oldName = dir + "/" + tempFilename;
@@ -51,7 +49,6 @@ void performEndToEnd(string dir, C150DgmSocket *sock, string filename, string cl
     }
     else
     {
-        cout << filename << ": end-to-end fail" << endl;
         *status = "fail";
         toLogServer(CHECK, filename, "failed");
     }
@@ -67,7 +64,6 @@ void sendManyTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMe
 {
     for (int numAttempts = 0; numAttempts < 40; numAttempts++)
     {
-        cout << "Sending status to client" << endl;
         sock->write(outgoingMessage.c_str(), strlen(outgoingMessage.c_str()) + 1);
 
         int readlen = sock->read(incomingMessage, 512);

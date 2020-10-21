@@ -1,8 +1,8 @@
-#include "safepackets.h"
 #include "sha1.h"
 #include "iomanip"
-#include <openssl/sha.h>
+#include "safepackets.h"
 #include <unistd.h>
+#include <openssl/sha.h>
 
 size_t BODYSIZE = 252;
 size_t PKTSIZE = 256;
@@ -29,6 +29,7 @@ size_t SafePackets::readFile(char *buffer)
     return len;
 }
 
+// Returns a safe packet (most commonly hashed)
 string SafePackets::getSafePacket(char *buffer, int hashFreq)
 {
     size_t len;
@@ -55,6 +56,7 @@ string SafePackets::getSafePacket(char *buffer, int hashFreq)
     return mostCommonPkt();
 }
 
+// Breaks a file into packets of size 256
 void SafePackets::fileToPackets(string sourceName)
 {
     void *fopenretval;
@@ -90,6 +92,7 @@ void SafePackets::fileToPackets(string sourceName)
     }
 }
 
+// Returns header containing packet id in hex
 string SafePackets::generateHeader()
 {
     stringstream stream;
@@ -114,13 +117,6 @@ string SafePackets::mostCommonPkt()
     return pkt;
 }
 
-long SafePackets::getFileSize(string filePath)
-{
-    struct stat stat_buf;
-    int rc = stat(filePath.c_str(), &stat_buf);
-    return rc == 0 ? stat_buf.st_size : -1;
-}
-
 int SafePackets::getNumPkts()
 {
     return numPkts;
@@ -131,9 +127,16 @@ string SafePackets::getPkt(int index)
     return pktArray.at(index);
 }
 
+long SafePackets::getFileSize(string filePath)
+{
+    struct stat stat_buf;
+    int rc = stat(filePath.c_str(), &stat_buf);
+    return rc == 0 ? stat_buf.st_size : -1;
+}
+
+// Set hash frequency based on filesize and file nastiness
 int SafePackets::setHashFreq(string filePath)
 {
-    // TODO: justify based on nastiness
     long size = getFileSize(filePath);
 
     if (nastiness == 0)

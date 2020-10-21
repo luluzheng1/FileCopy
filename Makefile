@@ -44,26 +44,6 @@ LDFLAGS =
 INCLUDES = $(C150LIB)c150dgmsocket.h $(C150LIB)c150nastydgmsocket.h $(C150LIB)c150network.h $(C150LIB)c150exceptions.h $(C150LIB)c150debug.h $(C150LIB)c150utility.h $(C150LIB)c150grading.h
 
 all: fileclient fileserver
-
-
-#
-# Build the nastyfiletest sample
-#
-# nastyfiletest: nastyfiletest.cpp  $(C150AR) $(INCLUDES)
-# 	$(CPP) -o nastyfiletest  $(CPPFLAGS) nastyfiletest.cpp $(C150AR)
-
-#
-# Build the sha1test
-
-sha1test: sha1test.cpp
-	$(CPP) -o sha1test sha1test.cpp -lssl -lcrypto
-
-#
-# Build the makedatafile 
-#
-# makedatafile: makedatafile.cpp
-# 	$(CPP) -o makedatafile makedatafile.cpp 
-
 #
 # Build the fileclient
 #
@@ -76,24 +56,43 @@ fileclient: fileclient.o safepackets.o endtoend.o sha1.o log.o $(C150AR) $(INCLU
 fileserver: fileserver.o safefile.o endtoend.o log.o sha1.o $(C150AR) $(INCLUDES)
 	$(CPP) -o fileserver safefile.o endtoend.o log.o sha1.o fileserver.o -lssl -lcrypto $(C150AR)
 
-#
-# Build the fileservertest
-#
-# safefiletest: safefiletest.o safefile.o $(C150AR) $(INCLUDES)
-# 	$(CPP) -o safefiletest safefiletest.o safefile.o -lssl -lcrypto $(C150AR)
-
-
-safepacketstest: safepacketstest.o $(C150AR) $(INCLUDES)
-	$(CPP) -o safepacketstest safepacketstest.o  -lssl -lcrypto $(C150AR)
 # To get any .o, compile the corresponding .cpp
 #
 %.o:%.cpp  $(INCLUDES)
 	$(CPP) -c  $(CPPFLAGS) $< 
 
+#
+# Build the nastyfiletest sample
+#
+# nastyfiletest: nastyfiletest.cpp  $(C150AR) $(INCLUDES)
+# 	$(CPP) -o nastyfiletest  $(CPPFLAGS) nastyfiletest.cpp $(C150AR)
+
+#
+# Build the sha1test
+# sha1test: sha1test.cpp
+# 	$(CPP) -o sha1test sha1test.cpp -lssl -lcrypto
+
+#
+# Build the makedatafile 
+#
+# makedatafile: makedatafile.cpp
+# 	$(CPP) -o makedatafile makedatafile.cpp 
+
+# TESTS
+#
+# Build the safefiletest
+#
+# safefiletest: safefiletest.o safefile.o $(C150AR) $(INCLUDES)
+# 	$(CPP) -o safefiletest safefiletest.o safefile.o -lssl -lcrypto $(C150AR)
+
+#
+# Build the safepacketstest
+#
+# safepacketstest: safepacketstest.o $(C150AR) $(INCLUDES)
+# 	$(CPP) -o safepacketstest safepacketstest.o  -lssl -lcrypto $(C150AR)
 
 #
 # Delete all compiled code in preparation
 # for forcing complete rebuild#
-
 clean:
 	 rm -f fileclient fileserver *.o *.txt

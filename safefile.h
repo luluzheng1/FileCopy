@@ -23,7 +23,7 @@ private:
   NASTYFILE outputFile;
   int nastiness;
   void removeMissing(int packetID);
-  void writePacket(string content, int packetID, int hashFrequ);
+  void writePacket(string content, int hashFrequ);
 
 public:
   SafeFile(int n, string d);

@@ -1,13 +1,13 @@
 #ifndef __SAFEPACKETS_H_INCLUDED__
 #define __SAFEPACKETS_H_INCLUDED__
 
-#include "c150nastyfile.h" // for c150nastyfile & framework
+#include "c150nastyfile.h"
 #include <list>
-#include <unordered_map>
 #include <string>
 #include <vector>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <unordered_map>
 
 using namespace std;
 using namespace C150NETWORK;
@@ -29,9 +29,9 @@ protected:
     sha1Map pktMap;
     vector<string> pktArray;
     int numPkts;
+    int nastiness;
     string fileName;
     NASTYFILE inputFile;
-    int nastiness;
 
 public:
     SafePackets();

@@ -11,7 +11,7 @@
 #include <thread>
 #include <openssl/sha.h>
 
-using namespace C150NETWORK; // for all the comp150 utilities
+using namespace C150NETWORK;
 
 string createMsg(string msgType, int numPkts, string fileName);
 void interpretEnd(string incomingMessage, int *numPackets, string *filename);
@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
     if (strspn(argv[1], "0123456789") != strlen(argv[1]))
     {
         fprintf(stderr, "Nastiness %s is not numeric\n", argv[1]);
-        fprintf(stderr, "Correct syntxt is: %s <nastiness_number>\n", argv[0]);
+        fprintf(stderr, "Correct synt is: %s <nastiness_number>\n", argv[0]);
         exit(4);
     }
 
@@ -60,9 +60,7 @@ int main(int argc, char *argv[])
             // Read a packet
             readlen = sock->read(incomingMessage, sizeof(incomingMessage) - 1);
             if (readlen == 0)
-            {
                 continue;
-            }
 
             // Clean up the message in case it contained junk
             incomingMessage[readlen] = '\0';
@@ -76,7 +74,6 @@ int main(int argc, char *argv[])
             {
                 toLogServer(BEGIN, filename, "");
                 interpretBegin(incoming, &numPackets, &filename, &SHA1Hash);
-                cout << filename << ": received BEGIN" << endl;
                 safe.setFile(numPackets, filename);
                 safe.setHashFreq();
             }
@@ -84,10 +81,8 @@ int main(int argc, char *argv[])
             else if (header.compare("END/") == 0)
             {
                 interpretEnd(incoming, &numPackets, &filename);
-                cout << filename << ": received END" << endl;
                 safe.computeMissing();
                 unordered_set<int> missingIDs = safe.getMissing();
-                cout << filename << ": missing " << missingIDs.size() << " packets!" << endl;
 
                 // Send resend requests for missing packets
                 if (missingIDs.size() > 0)
@@ -100,9 +95,7 @@ int main(int argc, char *argv[])
 
                     message = createMsg(DONE, 0, filename);
                     for (int i = 0; i < 2; i++)
-                    {
                         sock->write(message.c_str(), message.length());
-                    }
                 }
                 // Perform end-to-end check once server receives last packet
                 else
@@ -112,10 +105,8 @@ int main(int argc, char *argv[])
                     {
                         message = createMsg(ALL, 0, filename);
                         for (int i = 0; i < 4; i++)
-                        {
                             sock->write(message.c_str(), message.length());
-                        }
-                        cout << filename << ": END TO END CHECK" << endl;
+
                         toLogServer(END, filename, "");
                         performEndToEnd(targetDir, sock, filename, SHA1Hash, &status);
                         safe.clearFile();
@@ -129,9 +120,7 @@ int main(int argc, char *argv[])
             }
             // Client sent a packet
             else
-            {
                 safe.storePacket(incoming);
-            }
         }
     }
     catch (C150NetworkException &e)
@@ -171,16 +160,11 @@ void interpretBegin(string incomingMessage, int *numPackets, string *filename, s
 string createMsg(string msgType, int numPkts, string fileName)
 {
     if (msgType == REQ)
-    {
         return msgType + "/" + fileName + "/" + to_string(numPkts);
-    }
     else if (msgType == DONE)
-    {
         return msgType + "/" + fileName;
-    }
     else if (msgType == ALL)
-    {
         return msgType + fileName;
-    }
+
     return "-1";
 }

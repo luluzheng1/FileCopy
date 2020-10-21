@@ -95,12 +95,9 @@ int main(int argc, char *argv[])
 
                 // Send BEGIN message
                 msg = createMsg(BEGIN, numPkts, filename, sourceDir);
-                cout << filename << ": BEGIN transmission" << endl;
                 toLogClient(BEGIN, filename, "", attempts);
                 for (int i = 0; i < 10; i++)
-                {
                     sock->write(msg.c_str(), msg.length());
-                }
 
                 // Send all packets
                 for (int i = 0; i < numPkts; i++)
@@ -120,7 +117,6 @@ int main(int argc, char *argv[])
                     sock->write(msg.c_str(), msg.length());
                     this_thread::sleep_for(chrono::milliseconds(1));
                 }
-                cout << filename << ": END transmission" << endl;
                 toLogClient(END, filename, "", attempts);
 
                 while (1)
@@ -136,7 +132,6 @@ int main(int argc, char *argv[])
                         // Server requests resend of missing packet
                         if (status.compare("REQ/") == 0)
                         {
-                            cout << "REQ" << endl;
                             interpretReq(incoming, &packetID, &serverFilename);
                             pkt = safe.getPkt(packetID);
                             sock->write(pkt.c_str(), pkt.length());
@@ -146,7 +141,6 @@ int main(int argc, char *argv[])
                         else if (status.compare("DONE") == 0)
                         {
                             interpretEnd(incoming, &serverFilename);
-                            cout << serverFilename << "DONE" << endl;
                             msg = createMsg(END, numPkts, filename, sourceDir);
                             for (int i = 0; i < 10; i++)
                             {
@@ -160,10 +154,7 @@ int main(int argc, char *argv[])
                             interpretEnd(incoming, &serverFilename);
                             // Move on only if filename matches on both ends
                             if (filename.compare(serverFilename) == 0)
-                            {
-                                cout << filename << "ALL" << endl;
                                 break;
-                            }
                         }
                     }
                     // If server freezes for a long time
@@ -188,7 +179,7 @@ int main(int argc, char *argv[])
 
                         count = 0;
                     }
-                    cout << count << endl;
+
                     count++;
                 }
                 // Wait for end-to-end status from server
@@ -198,29 +189,21 @@ int main(int argc, char *argv[])
                     incomingStatus[4] = '\0';
                     if (readlen != 0 and sock->timedout() == 0)
                     {
-                        cout << filename << ": ACK/" << incomingStatus << endl;
                         string ack = "ACK/";
-                        printf("%s\n", incomingStatus);
                         // Successful copy
                         if (strcmp(incomingStatus, "succ") == 0)
                         {
-                            cout << "succ" << endl;
                             // Send acknowledgment
                             for (int i = 0; i < 20; i++)
-                            {
                                 sock->write(ack.c_str(), ack.length());
-                            }
                             toLogClient(CHECK, filename, "succeeded", attempts);
                             break;
                         }
                         // Unsuccessful copy
                         else if (strcmp(incomingStatus, "fail") == 0)
                         {
-                            cout << "fail" << endl;
                             for (int i = 0; i < 20; i++)
-                            {
                                 sock->write(ack.c_str(), ack.length());
-                            }
                             toLogClient(CHECK, filename, "failed", attempts);
                             break;
                         }
@@ -231,9 +214,8 @@ int main(int argc, char *argv[])
 
                 // Send next file if copy was successful
                 if (strcmp(incomingStatus, "succ") == 0)
-                {
                     break;
-                }
+
                 attempts++;
             }
         }

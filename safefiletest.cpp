@@ -38,18 +38,4 @@ int main(int argc, char *argv[])
     fclose(file);
 
     fileoutput.writeFile();
-
-    // file = fopen("test.txt", "rb");
-    // cout << "\nReading test.txt:!\n";
-    // while (1) {
-    //     buffer[0] = '\0';
-    //     readlen = fread(buffer, 1, 508, file);
-    //     if (readlen == 0) {
-    //         break;
-    //     }
-    //     buffer[readlen] = '\0';
-    //     string incoming(buffer);
-    //     cout << incoming << endl;
-    // }
-    // fclose(file);
 }
