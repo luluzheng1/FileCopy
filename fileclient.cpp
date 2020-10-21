@@ -99,7 +99,6 @@ int main(int argc, char *argv[])
             sock->write(msg.c_str(), msg.length());
 
             string pkt;
-            // cout << "client: WRITING packets" << endl;
             for (int i = 0; i < numPkts; i++)
             {
                 pkt = safe.getPkt(i);
@@ -153,18 +152,22 @@ int main(int argc, char *argv[])
             while (1)
             {
                 readlen = sock->read(incomingStatus, 4);
+                incomingStatus[4] = '\0';
                 if (readlen != 0 and sock->timedout() == 0)
                 {
                     cout << filename << ": ACK/" << incomingStatus << endl;
                     string ack = "ACK/";
+                    printf("%s\n", incomingStatus);
                     if (strcmp(incomingStatus, "succ") == 0)
                     {
+                        sock->write(ack.c_str(), ack.length());
                         sock->write(ack.c_str(), ack.length());
                         toLogClient(filename, "succeeded", attempts);
                         break;
                     }
                     else if (strcmp(incomingStatus, "fail") == 0)
                     {
+                        sock->write(ack.c_str(), ack.length());
                         sock->write(ack.c_str(), ack.length());
                         toLogClient(filename, "failed", attempts);
                         break;
