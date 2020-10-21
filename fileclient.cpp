@@ -1,21 +1,22 @@
-#include "c150nastydgmsocket.h"
 #include "endtoend.h"
 #include "safepackets.h"
+#include "c150nastydgmsocket.h"
 #include <stdio.h>
-#include <stdlib.h>
-#include <unordered_map>
 #include <chrono>
 #include <thread>
 #include <cstdlib>
 #include <dirent.h>
+#include <stdlib.h>
+#include <unordered_map>
 
 using namespace std;         // for C++ std library
 using namespace C150NETWORK; // for all the comp150 utilities
 
 const string BEGIN = "BEG";
 const string END = "END";
-
+const string CHECK = "CHECK";
 unsigned char obuf[20];
+
 // forward declarations
 string createMsg(string msgType, int numPkts, string fileName, char *sourceDir);
 void interpretReq(string incomingReq, int *packetID, string *filename);
@@ -30,21 +31,14 @@ int main(int argc, char *argv[])
 {
     GRADEME(argc, argv);
 
-    //
-    // Variable declarations
-    //
-    ssize_t readlen; // amount of data read from socket
-    int networkNastiness, fileNastiness, packetID;
-    char *sourceDir;
-    char incomingStatus[4];
-    char incomingReq[300];
-    int attempts = 1;
     DIR *src;
+    ssize_t readlen; // amount of data read from socket
+    char *sourceDir;
+    char incomingReq[300];  // buffer for server request
+    char incomingStatus[4]; // buffer for pkt type
     struct dirent *sourceFile;
     string filename, serverFilename, status;
-
-    //  Set up debug message logging
-    setUpDebugLogging("clientdebug.txt", argc, argv);
+    int networkNastiness, fileNastiness, packetID, attempts = 1;
 
     // Make sure command line looks right
     if (argc != 5)
@@ -52,11 +46,13 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Correct syntxt is: %s <servername> <networknastiness> <filenastiness> <srcdir>\n", argv[0]);
         exit(1);
     }
+
     networkNastiness = atoi(argv[networkNastinessArg]);
     fileNastiness = atoi(argv[fileNastinessArg]);
     sourceDir = argv[sourceDirArg];
 
     checkDirectory(sourceDir);
+
     src = opendir(sourceDir);
     if (src == NULL)
     {
@@ -67,7 +63,6 @@ int main(int argc, char *argv[])
     try
     {
         // Create the socket
-        c150debug->printf(C150APPLICATION, "Creating C150DgmSocket");
         C150DgmSocket *sock = new C150NastyDgmSocket(networkNastiness);
         sock->turnOnTimeouts(5000);
 
@@ -78,43 +73,56 @@ int main(int argc, char *argv[])
         // Declare instance of safepackets
         SafePackets safe(fileNastiness);
 
+        // Send all files one by one
         while ((sourceFile = readdir(src)) != NULL)
         {
             attempts = 1;
+            // Skip nested subdirectories
             if ((strcmp(sourceFile->d_name, ".") == 0) ||
                 (strcmp(sourceFile->d_name, "..") == 0))
                 continue; // never copy . or ..
+
             while (1)
             {
                 filename = sourceFile->d_name;
                 string sDir(sourceDir);
-                safe.fileToPackets(sDir + "/" + filename);
-                int numPkts = safe.getNumPkts();
+                string pkt, msg;
+                int numPkts, count = 0;
 
-                string msg = createMsg(BEGIN, numPkts, filename, sourceDir);
+                // Split file into packets and store in array
+                safe.fileToPackets(sDir + "/" + filename);
+                numPkts = safe.getNumPkts();
+
+                // Send BEGIN message
+                msg = createMsg(BEGIN, numPkts, filename, sourceDir);
                 cout << filename << ": BEGIN transmission" << endl;
+                toLogClient(BEGIN, filename, "", attempts);
                 for (int i = 0; i < 10; i++)
                 {
                     sock->write(msg.c_str(), msg.length());
                 }
-                string pkt;
+
+                // Send all packets
                 for (int i = 0; i < numPkts; i++)
                 {
                     pkt = safe.getPkt(i);
                     sock->write(pkt.c_str(), pkt.length());
+
+                    // Delay so not to overload server
                     if (i % 100 == 0)
                         this_thread::sleep_for(chrono::milliseconds(5));
                 }
 
+                // Send END message
                 msg = createMsg(END, numPkts, filename, sourceDir);
                 for (int i = 0; i < 10; i++)
                 {
                     sock->write(msg.c_str(), msg.length());
                     this_thread::sleep_for(chrono::milliseconds(1));
                 }
-
                 cout << filename << ": END transmission" << endl;
-                int count = 0;
+                toLogClient(END, filename, "", attempts);
+
                 while (1)
                 {
                     readlen = sock->read(incomingReq, 300);
@@ -122,8 +130,10 @@ int main(int argc, char *argv[])
                     if (readlen != 0 and sock->timedout() == 0)
                     {
                         string incoming(incomingReq);
+                        // Extract header
                         status = incoming.substr(0, 4);
 
+                        // Server requests resend of missing packet
                         if (status.compare("REQ/") == 0)
                         {
                             cout << "REQ" << endl;
@@ -132,6 +142,7 @@ int main(int argc, char *argv[])
                             sock->write(pkt.c_str(), pkt.length());
                             sock->write(pkt.c_str(), pkt.length());
                         }
+                        // Server finishes one round of requests
                         else if (status.compare("DONE") == 0)
                         {
                             interpretEnd(incoming, &serverFilename);
@@ -143,9 +154,11 @@ int main(int argc, char *argv[])
                                 this_thread::sleep_for(chrono::milliseconds(1));
                             }
                         }
+                        // Server received all packets
                         else if (status.compare("ALL/") == 0)
                         {
                             interpretEnd(incoming, &serverFilename);
+                            // Move on only if filename matches on both ends
                             if (filename.compare(serverFilename) == 0)
                             {
                                 cout << filename << "ALL" << endl;
@@ -153,8 +166,10 @@ int main(int argc, char *argv[])
                             }
                         }
                     }
+                    // If server freezes for a long time
                     if (count == 70)
                     {
+                        // Send all packets again
                         for (int i = 0; i < numPkts; i++)
                         {
                             pkt = safe.getPkt(i);
@@ -163,6 +178,7 @@ int main(int argc, char *argv[])
                                 this_thread::sleep_for(chrono::milliseconds(5));
                         }
 
+                        // Send END packet
                         msg = createMsg(END, numPkts, filename, sourceDir);
                         for (int i = 0; i < 10; i++)
                         {
@@ -175,7 +191,7 @@ int main(int argc, char *argv[])
                     cout << count << endl;
                     count++;
                 }
-                // Check for end to end status from server
+                // Wait for end-to-end status from server
                 while (1)
                 {
                     readlen = sock->read(incomingStatus, 4);
@@ -185,16 +201,19 @@ int main(int argc, char *argv[])
                         cout << filename << ": ACK/" << incomingStatus << endl;
                         string ack = "ACK/";
                         printf("%s\n", incomingStatus);
+                        // Successful copy
                         if (strcmp(incomingStatus, "succ") == 0)
                         {
                             cout << "succ" << endl;
+                            // Send acknowledgment
                             for (int i = 0; i < 20; i++)
                             {
                                 sock->write(ack.c_str(), ack.length());
                             }
-                            toLogClient(filename, "succeeded", attempts);
+                            toLogClient(CHECK, filename, "succeeded", attempts);
                             break;
                         }
+                        // Unsuccessful copy
                         else if (strcmp(incomingStatus, "fail") == 0)
                         {
                             cout << "fail" << endl;
@@ -202,7 +221,7 @@ int main(int argc, char *argv[])
                             {
                                 sock->write(ack.c_str(), ack.length());
                             }
-                            toLogClient(filename, "failed", attempts);
+                            toLogClient(CHECK, filename, "failed", attempts);
                             break;
                         }
                     }
@@ -210,6 +229,7 @@ int main(int argc, char *argv[])
                 // Clear file information
                 safe.clear();
 
+                // Send next file if copy was successful
                 if (strcmp(incomingStatus, "succ") == 0)
                 {
                     break;
@@ -223,17 +243,14 @@ int main(int argc, char *argv[])
     //  Handle networking errors -- for now, just print message and give up!
     catch (C150NetworkException &e)
     {
-        // Write to debug log
-        c150debug->printf(C150ALWAYSLOG, "Caught C150NetworkException: %s\n",
-                          e.formattedExplanation().c_str());
         // In case we're logging to a file, write to the console too
-        cerr << argv[0] << ": caught C150NetworkException: " << e.formattedExplanation()
-             << endl;
+        cerr << argv[0] << ": caught C150NetworkException: " << e.formattedExplanation() << endl;
     }
 
     return 0;
 }
 
+// Format packet based on message type
 string createMsg(string msgType, int numPkts, string fileName, char *sourceDir)
 {
     if (msgType == BEGIN)
@@ -249,6 +266,7 @@ string createMsg(string msgType, int numPkts, string fileName, char *sourceDir)
     return "-1";
 }
 
+// Extract information from server's request packet
 void interpretReq(string incomingReq, int *packetID, string *filename)
 {
     incomingReq.erase(0, 4);
@@ -258,6 +276,7 @@ void interpretReq(string incomingReq, int *packetID, string *filename)
     *packetID = stoi(incomingReq);
 }
 
+// Extract information from server's end packet
 void interpretEnd(string incomingReq, string *filename)
 {
     incomingReq.erase(0, 4);

@@ -4,10 +4,10 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <unordered_map>
-#include <algorithm>
 #include <unistd.h>
+#include <algorithm>
 #include <sys/stat.h>
+#include <unordered_map>
 
 using namespace std;         // for C++ std library
 using namespace C150NETWORK; // for all the comp150 utilities
@@ -40,23 +40,14 @@ void SafeFile::clearFile()
     numPackets = 0;
     filename = "";
     packets.clear();
-
     received.clear();
-
     missing.clear();
-}
-
-int SafeFile::getNumPackets()
-{
-    return numPackets;
 }
 
 void SafeFile::storePacket(string packet)
 {
     int packetID = stoi(packet.substr(0, 4), 0, 16);
     string content = packet.substr(4);
-
-    // cout << "Inserting packet ID " << packetID << " to a vector of capacity " << packets.size() + 1 << endl;
 
     packets[packetID] = content;
     received.insert(packetID);
@@ -65,35 +56,24 @@ void SafeFile::storePacket(string packet)
 
 void SafeFile::computeMissing()
 {
-    // cout << "Has " << received.size() << " packets" << endl;
 
     for (int i = 0; i < numPackets; i++)
     {
         if (!received.count(i))
-        {
             missing.insert(i);
-        }
     }
-
     return;
 }
 
 void SafeFile::removeMissing(int packetID)
 {
     if (missing.count(packetID))
-    {
         missing.erase(packetID);
-    }
 }
 
 unordered_set<int> SafeFile::getMissing()
 {
     return missing;
-}
-
-bool SafeFile::isMissing()
-{
-    return !missing.empty();
 }
 
 int SafeFile::setHashFreq()
@@ -104,7 +84,7 @@ int SafeFile::setHashFreq()
     {
         long size = numPackets * CONTENT_SIZE;
         if (size > 1e6)
-            return 12 + nastiness;
+            return 14 + nastiness;
         else if (size > 1e5)
             return 9 + nastiness;
         else if (size > 1e4)
@@ -237,28 +217,6 @@ void SafeFile::writePacket(string content, int packetID, int hashFrequ)
 
     // Set the filepointe to the end of file
     outputFile.fseek(0, SEEK_END);
-}
-
-string SafeFile::likelyContent()
-{
-    return "";
-}
-
-unordered_map<int, string> SafeFile::getPackets()
-{
-    return packets;
-}
-
-string SafeFile::readTest()
-{
-    outputFile.fopen("TARGET/data1", "rb");
-    char buffer[512];
-    cout << outputFile.fread(buffer, 1, 512) << endl;
-    string incoming(buffer);
-    cout << incoming << endl;
-    outputFile.fclose();
-
-    return incoming;
 }
 
 SafeFile::~SafeFile() {}

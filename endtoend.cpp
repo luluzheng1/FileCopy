@@ -1,19 +1,23 @@
 #include "endtoend.h"
 #include <string>
 #include <cstdlib>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <dirent.h>
 #include <stdio.h>
 #include <chrono>
 #include <thread>
+#include <dirent.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
+const string CHECK = "CHECK";
+
+// Returns true if file with path dir/name exists
 inline bool fileExists(string dir, string &name)
 {
     struct stat buffer;
     return (stat((dir + "/" + name).c_str(), &buffer) == 0);
 }
 
+// Does end to end check
 void performEndToEnd(string dir, C150DgmSocket *sock, string filename, string clientSHA1Hash, string *status)
 {
     checkDirectory((char *)dir.c_str());
@@ -23,11 +27,11 @@ void performEndToEnd(string dir, C150DgmSocket *sock, string filename, string cl
 
     tempFilename = filename + ".TMP";
 
-    // if file no longer exists, don't perform end to end
+    // If file no longer exists, don't perform end to end
     if (!fileExists(dir, tempFilename))
     {
         cout << "file no longer exists" << endl;
-        tryFiveTimes(sock, *status, (char *)incomingMessage);
+        sendManyTimes(sock, *status, (char *)incomingMessage);
         return;
     }
 
@@ -39,7 +43,7 @@ void performEndToEnd(string dir, C150DgmSocket *sock, string filename, string cl
     {
         cout << filename << ": end-to-end success" << endl;
         *status = "succ";
-        toLogServer(filename, "succeeded");
+        toLogServer(CHECK, filename, "succeeded");
         string oldName = dir + "/" + tempFilename;
         string newName = dir + "/" + filename;
 
@@ -49,16 +53,17 @@ void performEndToEnd(string dir, C150DgmSocket *sock, string filename, string cl
     {
         cout << filename << ": end-to-end fail" << endl;
         *status = "fail";
-        toLogServer(filename, "failed");
+        toLogServer(CHECK, filename, "failed");
     }
 
     // Write status to client and read ack from client
-    tryFiveTimes(sock, *status, (char *)incomingMessage);
+    sendManyTimes(sock, *status, (char *)incomingMessage);
 
     c150debug->printf(C150APPLICATION, "%s", incomingMessage);
 }
 
-void tryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage)
+// Send end-to-end status to client
+void sendManyTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage)
 {
     for (int numAttempts = 0; numAttempts < 40; numAttempts++)
     {
@@ -71,14 +76,7 @@ void tryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMes
     }
 }
 
-// ------------------------------------------------------
-//
-//                   checkDirectory
-//
 //  Make sure directory exists
-//
-// ------------------------------------------------------
-
 void checkDirectory(char *dirname)
 {
     struct stat statbuf;
