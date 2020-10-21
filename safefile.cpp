@@ -67,6 +67,7 @@ void SafeFile::computeMissing()
     return;
 }
 
+// Remove packet from missing pkts array
 void SafeFile::removeMissing(int packetID)
 {
     if (missing.count(packetID))
@@ -97,6 +98,7 @@ int SafeFile::setHashFreq()
     }
 }
 
+// Reconstruct file from packets hashmap
 bool SafeFile::writeFile()
 {
     string fn = dirName + "/" + filename + ".TMP";
@@ -115,7 +117,8 @@ bool SafeFile::writeFile()
     return true;
 }
 
-void SafeFile::writePacket(string content, int hashFrequ)
+// Write one safe packet to file
+void SafeFile::writePacket(string content, int hashFreq)
 {
     int rewriteAttemps = 0;
     int packet_size = content.length();
@@ -133,11 +136,11 @@ void SafeFile::writePacket(string content, int hashFrequ)
         size_t size = outputFile.fwrite(content.c_str(), 1, packet_size);
 
         // No need to hash if nastiness is 0
-        if (hashFrequ == 0)
+        if (hashFreq == 0)
             break;
 
         // Do repeated reads at the location
-        for (int i = 0; i < hashFrequ; i++)
+        for (int i = 0; i < hashFreq; i++)
         {
             memset(buffer, 0, packet_size + 1); // Clear buffer
 
@@ -155,6 +158,7 @@ void SafeFile::writePacket(string content, int hashFrequ)
                 exit(12);
             }
 
+            // Go to beginning of packet
             outputFile.fseek(-size, SEEK_END);
             outputFile.fread(buffer, sizeof(char), packet_size + 1);
             outputFile.fseek(-size, SEEK_END);
@@ -166,9 +170,7 @@ void SafeFile::writePacket(string content, int hashFrequ)
             if (contentWritten.find(incoming) == contentWritten.end())
                 contentWritten.insert({{incoming, 1}});
             else
-            {
                 contentWritten.at(incoming) += 1;
-            }
         }
 
         // Find most commonly hashed packet
@@ -187,7 +189,7 @@ void SafeFile::writePacket(string content, int hashFrequ)
             rewriteAttemps++;
     }
 
-    // Set filepointer to the end of file
+    // Set file pointer to EOF
     outputFile.fseek(0, SEEK_END);
 }
 

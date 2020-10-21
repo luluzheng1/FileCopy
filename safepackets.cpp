@@ -79,6 +79,7 @@ void SafePackets::fileToPackets(string sourceName)
         if (pkt == "-1")
             break;
 
+        // Add formatted packet to pktArray
         string header = generateHeader();
         numPkts++;
         pkt = header + pkt;
@@ -100,6 +101,7 @@ string SafePackets::generateHeader()
     return stream.str();
 }
 
+// Compute the most commonly hashed pkt in pktMap
 string SafePackets::mostCommonPkt()
 {
     unsigned currentMax = 0;

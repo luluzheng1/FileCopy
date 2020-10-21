@@ -17,7 +17,7 @@ inline bool fileExists(string dir, string &name)
     return (stat((dir + "/" + name).c_str(), &buffer) == 0);
 }
 
-// Does end to end check
+// Does end-to-end check
 void performEndToEnd(string dir, C150DgmSocket *sock, string filename, string clientSHA1Hash, string *status)
 {
     checkDirectory((char *)dir.c_str());
@@ -37,7 +37,7 @@ void performEndToEnd(string dir, C150DgmSocket *sock, string filename, string cl
     encodeSHA1(dir, tempFilename, obuf);
     serverSHA1Hash = SHA1toHex(obuf);
 
-    // Check SHA1hashes sent by client and computed by server
+    // Check SHA1 hashes sent by client and computed by server are same
     if (clientSHA1Hash.compare(serverSHA1Hash) == 0)
     {
         *status = "succ";

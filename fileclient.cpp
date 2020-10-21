@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
         // Declare instance of safepackets
         SafePackets safe(fileNastiness);
 
-        // Send all files one by one
+        // Send files one by one
         while ((sourceFile = readdir(src)) != NULL)
         {
             attempts = 1;
@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
                 filename = sourceFile->d_name;
                 string sDir(sourceDir);
                 string pkt, msg;
-                int numPkts, count = 0;
+                int numPkts, timeOut = 0;
 
                 // Split file into packets and store in array
                 safe.fileToPackets(sDir + "/" + filename);
@@ -119,6 +119,7 @@ int main(int argc, char *argv[])
                 }
                 toLogClient(END, filename, "", attempts);
 
+                // Handle requests from server
                 while (1)
                 {
                     readlen = sock->read(incomingReq, 300);
@@ -129,7 +130,7 @@ int main(int argc, char *argv[])
                         // Extract header
                         status = incoming.substr(0, 4);
 
-                        // Server requests resend of missing packet
+                        // Received request for resending a missing pkt
                         if (status.compare("REQ/") == 0)
                         {
                             interpretReq(incoming, &packetID, &serverFilename);
@@ -137,7 +138,7 @@ int main(int argc, char *argv[])
                             sock->write(pkt.c_str(), pkt.length());
                             sock->write(pkt.c_str(), pkt.length());
                         }
-                        // Server finishes one round of requests
+                        // Received request to send END message after one round of resends
                         else if (status.compare("DONE") == 0)
                         {
                             interpretEnd(incoming, &serverFilename);
@@ -148,7 +149,7 @@ int main(int argc, char *argv[])
                                 this_thread::sleep_for(chrono::milliseconds(1));
                             }
                         }
-                        // Server received all packets
+                        // Server received all pkts
                         else if (status.compare("ALL/") == 0)
                         {
                             interpretEnd(incoming, &serverFilename);
@@ -158,7 +159,7 @@ int main(int argc, char *argv[])
                         }
                     }
                     // If server freezes for a long time
-                    if (count == 70)
+                    if (timeOut == 70)
                     {
                         // Send all packets again
                         for (int i = 0; i < numPkts; i++)
@@ -177,10 +178,10 @@ int main(int argc, char *argv[])
                             this_thread::sleep_for(chrono::milliseconds(1));
                         }
 
-                        count = 0;
+                        timeOut = 0;
                     }
 
-                    count++;
+                    timeOut++;
                 }
                 // Wait for end-to-end status from server
                 while (1)
@@ -213,6 +214,7 @@ int main(int argc, char *argv[])
                 safe.clear();
 
                 // Send next file if copy was successful
+                // Resend current file if unsuccessful
                 if (strcmp(incomingStatus, "succ") == 0)
                     break;
 

@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
     {
         C150DgmSocket *sock = new C150NastyDgmSocket(networkNastiness);
 
-        // Infinite loop processing messages
+        // Process messages infinitely
         while (1)
         {
             // Read a packet
@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
             // Detect message type
             header = incoming.substr(0, 4);
 
-            // Client sent BEGIN message
+            // Received BEGIN message
             if (header.compare("BEG/") == 0)
             {
                 toLogServer(BEGIN, filename, "");
@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
                 safe.setFile(numPackets, filename);
                 safe.setHashFreq();
             }
-            // Client sent END message
+            // Received END message
             else if (header.compare("END/") == 0)
             {
                 interpretEnd(incoming, &numPackets, &filename);
@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
 
                         toLogServer(END, filename, "");
                         performEndToEnd(targetDir, sock, filename, SHA1Hash, &status);
-                        safe.clearFile();
+                        safe.clearFile(); // Clear metadata and pkts in SafeFile
                     }
                     else
                     {
