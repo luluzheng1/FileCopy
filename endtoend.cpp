@@ -60,7 +60,7 @@ void performEndToEnd(string dir, C150DgmSocket *sock, string filename, string cl
 
 void tryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage)
 {
-    for (int numAttempts = 0; numAttempts < 30; numAttempts++)
+    for (int numAttempts = 0; numAttempts < 40; numAttempts++)
     {
         cout << "Sending status to client" << endl;
         sock->write(outgoingMessage.c_str(), strlen(outgoingMessage.c_str()) + 1);

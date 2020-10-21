@@ -75,140 +75,147 @@ int main(int argc, char *argv[])
         sock->setServerName(argv[serverArg]);
         string serverName = argv[serverArg];
 
-        attempts = 1;
-
         // Declare instance of safepackets
         SafePackets safe(fileNastiness);
 
         while ((sourceFile = readdir(src)) != NULL)
         {
+            attempts = 1;
             if ((strcmp(sourceFile->d_name, ".") == 0) ||
                 (strcmp(sourceFile->d_name, "..") == 0))
                 continue; // never copy . or ..
-
-            filename = sourceFile->d_name;
-            string sDir(sourceDir);
-            safe.fileToPackets(sDir + "/" + filename);
-            int numPkts = safe.getNumPkts();
-
-            string msg = createMsg(BEGIN, numPkts, filename, sourceDir);
-            cout << filename << ": BEGIN transmission" << endl;
-            for (int i = 0; i < 10; i++)
-            {
-                sock->write(msg.c_str(), msg.length());
-            }
-            string pkt;
-            for (int i = 0; i < numPkts; i++)
-            {
-                pkt = safe.getPkt(i);
-                sock->write(pkt.c_str(), pkt.length());
-                if (i % 100 == 0)
-                    this_thread::sleep_for(chrono::milliseconds(5));
-            }
-
-            msg = createMsg(END, numPkts, filename, sourceDir);
-            for (int i = 0; i < 10; i++)
-            {
-                sock->write(msg.c_str(), msg.length());
-                this_thread::sleep_for(chrono::milliseconds(1));
-            }
-
-            cout << filename << ": END transmission" << endl;
-            int count = 0;
             while (1)
             {
-                readlen = sock->read(incomingReq, 300);
-                incomingReq[readlen] = '\0';
-                if (readlen != 0 and sock->timedout() == 0)
-                {
-                    string incoming(incomingReq);
-                    status = incoming.substr(0, 4);
+                filename = sourceFile->d_name;
+                string sDir(sourceDir);
+                safe.fileToPackets(sDir + "/" + filename);
+                int numPkts = safe.getNumPkts();
 
-                    if (status.compare("REQ/") == 0)
+                string msg = createMsg(BEGIN, numPkts, filename, sourceDir);
+                cout << filename << ": BEGIN transmission" << endl;
+                for (int i = 0; i < 10; i++)
+                {
+                    sock->write(msg.c_str(), msg.length());
+                }
+                string pkt;
+                for (int i = 0; i < numPkts; i++)
+                {
+                    pkt = safe.getPkt(i);
+                    sock->write(pkt.c_str(), pkt.length());
+                    if (i % 100 == 0)
+                        this_thread::sleep_for(chrono::milliseconds(5));
+                }
+
+                msg = createMsg(END, numPkts, filename, sourceDir);
+                for (int i = 0; i < 10; i++)
+                {
+                    sock->write(msg.c_str(), msg.length());
+                    this_thread::sleep_for(chrono::milliseconds(1));
+                }
+
+                cout << filename << ": END transmission" << endl;
+                int count = 0;
+                while (1)
+                {
+                    readlen = sock->read(incomingReq, 300);
+                    incomingReq[readlen] = '\0';
+                    if (readlen != 0 and sock->timedout() == 0)
                     {
-                        cout << "REQ" << endl;
-                        interpretReq(incoming, &packetID, &serverFilename);
-                        pkt = safe.getPkt(packetID);
-                        sock->write(pkt.c_str(), pkt.length());
-                        sock->write(pkt.c_str(), pkt.length());
+                        string incoming(incomingReq);
+                        status = incoming.substr(0, 4);
+
+                        if (status.compare("REQ/") == 0)
+                        {
+                            cout << "REQ" << endl;
+                            interpretReq(incoming, &packetID, &serverFilename);
+                            pkt = safe.getPkt(packetID);
+                            sock->write(pkt.c_str(), pkt.length());
+                            sock->write(pkt.c_str(), pkt.length());
+                        }
+                        else if (status.compare("DONE") == 0)
+                        {
+                            interpretEnd(incoming, &serverFilename);
+                            cout << serverFilename << "DONE" << endl;
+                            msg = createMsg(END, numPkts, filename, sourceDir);
+                            for (int i = 0; i < 10; i++)
+                            {
+                                sock->write(msg.c_str(), msg.length());
+                                this_thread::sleep_for(chrono::milliseconds(1));
+                            }
+                        }
+                        else if (status.compare("ALL/") == 0)
+                        {
+                            interpretEnd(incoming, &serverFilename);
+                            if (filename.compare(serverFilename) == 0)
+                            {
+                                cout << filename << "ALL" << endl;
+                                break;
+                            }
+                        }
                     }
-                    else if (status.compare("DONE") == 0)
+                    if (count == 70)
                     {
-                        interpretEnd(incoming, &serverFilename);
-                        cout << serverFilename << "DONE" << endl;
+                        for (int i = 0; i < numPkts; i++)
+                        {
+                            pkt = safe.getPkt(i);
+                            sock->write(pkt.c_str(), pkt.length());
+                            if (i % 100 == 0)
+                                this_thread::sleep_for(chrono::milliseconds(5));
+                        }
+
                         msg = createMsg(END, numPkts, filename, sourceDir);
                         for (int i = 0; i < 10; i++)
                         {
                             sock->write(msg.c_str(), msg.length());
                             this_thread::sleep_for(chrono::milliseconds(1));
                         }
+
+                        count = 0;
                     }
-                    else if (status.compare("ALL/") == 0)
+                    cout << count << endl;
+                    count++;
+                }
+                // Check for end to end status from server
+                while (1)
+                {
+                    readlen = sock->read(incomingStatus, 4);
+                    incomingStatus[4] = '\0';
+                    if (readlen != 0 and sock->timedout() == 0)
                     {
-                        interpretEnd(incoming, &serverFilename);
-                        if (filename.compare(serverFilename) == 0)
+                        cout << filename << ": ACK/" << incomingStatus << endl;
+                        string ack = "ACK/";
+                        printf("%s\n", incomingStatus);
+                        if (strcmp(incomingStatus, "succ") == 0)
                         {
-                            cout << filename << "ALL" << endl;
+                            cout << "succ" << endl;
+                            for (int i = 0; i < 20; i++)
+                            {
+                                sock->write(ack.c_str(), ack.length());
+                            }
+                            toLogClient(filename, "succeeded", attempts);
+                            break;
+                        }
+                        else if (strcmp(incomingStatus, "fail") == 0)
+                        {
+                            cout << "fail" << endl;
+                            for (int i = 0; i < 20; i++)
+                            {
+                                sock->write(ack.c_str(), ack.length());
+                            }
+                            toLogClient(filename, "failed", attempts);
                             break;
                         }
                     }
                 }
-                if (count == 70)
-                {
-                    for (int i = 0; i < numPkts; i++)
-                    {
-                        pkt = safe.getPkt(i);
-                        sock->write(pkt.c_str(), pkt.length());
-                        if (i % 100 == 0)
-                            this_thread::sleep_for(chrono::milliseconds(5));
-                    }
+                // Clear file information
+                safe.clear();
 
-                    msg = createMsg(END, numPkts, filename, sourceDir);
-                    for (int i = 0; i < 10; i++)
-                    {
-                        sock->write(msg.c_str(), msg.length());
-                        this_thread::sleep_for(chrono::milliseconds(1));
-                    }
-
-                    count = 0;
-                }
-                cout << count << endl;
-                count++;
-            }
-            // Check for end to end status from server
-            while (1)
-            {
-                readlen = sock->read(incomingStatus, 4);
-                incomingStatus[4] = '\0';
-                if (readlen != 0 and sock->timedout() == 0)
+                if (strcmp(incomingStatus, "succ") == 0)
                 {
-                    cout << filename << ": ACK/" << incomingStatus << endl;
-                    string ack = "ACK/";
-                    printf("%s\n", incomingStatus);
-                    if (strcmp(incomingStatus, "succ") == 0)
-                    {
-                        cout << "succ" << endl;
-                        for (int i = 0; i < 20; i++)
-                        {
-                            sock->write(ack.c_str(), ack.length());
-                        }
-                        toLogClient(filename, "succeeded", attempts);
-                        break;
-                    }
-                    else if (strcmp(incomingStatus, "fail") == 0)
-                    {
-                        cout << "fail" << endl;
-                        for (int i = 0; i < 20; i++)
-                        {
-                            sock->write(ack.c_str(), ack.length());
-                        }
-                        toLogClient(filename, "failed", attempts);
-                        break;
-                    }
+                    break;
                 }
+                attempts++;
             }
-            // Clear file information
-            safe.clear();
         }
 
         closedir(src);

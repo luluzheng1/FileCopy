@@ -139,11 +139,11 @@ int SafePackets::setHashFreq(string filePath)
     if (nastiness == 0)
         return 1;
     else if (size > 1e6)
-        return 25;
+        return 30 + nastiness;
     else if (size > 1e4)
-        return 10;
+        return 15 + nastiness;
     else if (size > 1e3)
-        return 7;
+        return 10 + nastiness;
     else
         return 5;
 }

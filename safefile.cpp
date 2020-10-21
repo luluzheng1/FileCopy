@@ -104,13 +104,13 @@ int SafeFile::setHashFreq()
     {
         long size = numPackets * CONTENT_SIZE;
         if (size > 1e6)
-            return 3;
-        else if (size > 1e6)
-            return 4;
-        else if (size > 1e6)
-            return 5;
+            return 12 + nastiness;
+        else if (size > 1e5)
+            return 9 + nastiness;
+        else if (size > 1e4)
+            return 7 + nastiness;
         else
-            return 6;
+            return 5 + nastiness;
     }
 }
 
