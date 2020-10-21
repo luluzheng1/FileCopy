@@ -5,6 +5,8 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <stdio.h>
+#include <chrono>
+#include <thread>
 
 inline bool fileExists(string dir, string &name)
 {
@@ -12,10 +14,10 @@ inline bool fileExists(string dir, string &name)
     return (stat((dir + "/" + name).c_str(), &buffer) == 0);
 }
 
-void performEndToEnd(string dir, C150DgmSocket *sock, string filename, string clientSHA1Hash)
+void performEndToEnd(string dir, C150DgmSocket *sock, string filename, string clientSHA1Hash, string *status)
 {
     checkDirectory((char *)dir.c_str());
-    string tempFilename, serverSHA1Hash, status;
+    string tempFilename, serverSHA1Hash;
     char incomingMessage[512]; // received message data
     unsigned char obuf[20];
 
@@ -25,6 +27,7 @@ void performEndToEnd(string dir, C150DgmSocket *sock, string filename, string cl
     if (!fileExists(dir, tempFilename))
     {
         cout << "file no longer exists" << endl;
+        tryFiveTimes(sock, *status, (char *)incomingMessage);
         return;
     }
 
@@ -35,7 +38,7 @@ void performEndToEnd(string dir, C150DgmSocket *sock, string filename, string cl
     if (clientSHA1Hash.compare(serverSHA1Hash) == 0)
     {
         cout << filename << ": end-to-end success" << endl;
-        status = "succ";
+        *status = "succ";
         toLogServer(filename, "succeeded");
         string oldName = dir + "/" + tempFilename;
         string newName = dir + "/" + filename;
@@ -45,26 +48,27 @@ void performEndToEnd(string dir, C150DgmSocket *sock, string filename, string cl
     else
     {
         cout << filename << ": end-to-end fail" << endl;
-        status = "fail";
+        *status = "fail";
         toLogServer(filename, "failed");
     }
 
     // Write status to client and read ack from client
-    tryFiveTimes(sock, status, (char *)incomingMessage);
+    tryFiveTimes(sock, *status, (char *)incomingMessage);
 
     c150debug->printf(C150APPLICATION, "%s", incomingMessage);
 }
 
 void tryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage)
 {
-    for (int numAttempts = 0; numAttempts < 10; numAttempts++)
+    for (int numAttempts = 0; numAttempts < 30; numAttempts++)
     {
+        cout << "Sending status to client" << endl;
         sock->write(outgoingMessage.c_str(), strlen(outgoingMessage.c_str()) + 1);
+
         int readlen = sock->read(incomingMessage, 512);
-        if (sock->timedout() == 0 or readlen != 0)
+        if (readlen != 0)
             return;
     }
-    throw C150NetworkException("The client is not responding");
 }
 
 // ------------------------------------------------------

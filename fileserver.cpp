@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
 
     ssize_t readlen;           // amount of data read from socket
     char incomingMessage[257]; // received message data
-    string filename, header, message, SHA1Hash, targetDir;
+    string filename, header, message, SHA1Hash, targetDir, status;
     int numPackets, networkNastiness, fileNastiness;
 
     if (argc != 4)
@@ -101,9 +101,10 @@ int main(int argc, char *argv[])
                     }
 
                     message = createMsg(DONE, 0, filename);
-                    sock->write(message.c_str(), message.length());
-                    sock->write(message.c_str(), message.length());
-                    sock->write(message.c_str(), message.length());
+                    for (int i = 0; i < 2; i++)
+                    {
+                        sock->write(message.c_str(), message.length());
+                    }
                 }
 
                 // this_thread::sleep_for(chrono::milliseconds(5));
@@ -113,12 +114,13 @@ int main(int argc, char *argv[])
                 {
                     safe.writeFile();
                     message = createMsg(ALL, 0, filename);
-                    sock->write(message.c_str(), message.length());
-                    sock->write(message.c_str(), message.length());
-                    sock->write(message.c_str(), message.length());
-
+                    for (int i = 0; i < 6; i++)
+                    {
+                        sock->write(message.c_str(), message.length());
+                        // this_thread::sleep_for(chrono::milliseconds(1));
+                    }
                     cout << filename << ": END TO END CHECK" << endl;
-                    performEndToEnd(targetDir, sock, filename, SHA1Hash);
+                    performEndToEnd(targetDir, sock, filename, SHA1Hash, &status);
                     safe.clearFile();
                 }
             }

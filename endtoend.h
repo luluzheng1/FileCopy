@@ -7,7 +7,7 @@
 using namespace std;         // for C++ std library
 using namespace C150NETWORK; // for all the comp150 utilities
 
-void performEndToEnd(string sDir, C150DgmSocket *sock, string filename, string clientSHA1Hash);
+void performEndToEnd(string sDir, C150DgmSocket *sock, string filename, string clientSHA1Hash, string *status);
 void tryFiveTimes(C150DgmSocket *sock, string outgoingMessage, char *incomingMessage);
 void checkDirectory(char *dirname);
 
